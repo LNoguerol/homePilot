@@ -1,0 +1,122 @@
+"""Testes da API HTTP (endpoints e validações)."""
+from fastapi.testclient import TestClient
+
+from homepilot.main import app
+
+cliente = TestClient(app)
+
+CONTRATO_BASE = {
+    "data_base": "2026-07-17",
+    "saldo_devedor": "332786.77",
+    "sistema_amortizacao": "price",
+    "indexador": "tr",
+    "taxa_nominal_anual": "0.1002",
+    "taxa_efetiva_informada": "0.1049",
+    "prazo_original": 390,
+    "prazo_restante": 376,
+    "seguros_tarifas_mensais": "130.00",
+    "limite_saldo": "350000.00",
+    "limite_prestacao": "3800.00",
+}
+
+AMORTIZACOES_FGTS = [
+    {"data": "2027-06-17", "valor": "40000", "estrategia": "reducao_prazo"},
+    {"data": "2029-06-17", "valor": "40000", "estrategia": "reducao_prazo"},
+]
+
+
+def test_health_retorna_status_ok():
+    resposta = cliente.get("/api/health")
+    assert resposta.status_code == 200
+    assert resposta.json() == {"status": "ok"}
+
+
+def test_criar_simulacao_com_cenario_inicial():
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "amortizacoes": AMORTIZACOES_FGTS,
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 200
+    corpo_resposta = resposta.json()
+    assert len(corpo_resposta["parcelas"]) > 0
+    assert corpo_resposta["resumo"]["status_limite_saldo"] in {"Dentro do limite", "Ultrapassado"}
+
+
+def test_comparar_cenarios_de_tr():
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "amortizacoes": AMORTIZACOES_FGTS,
+        "cenarios": [
+            {"nome": "TR 0,0% a.a.", "taxa_anual": "0.0"},
+            {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+            {"nome": "TR 2,0% a.a.", "taxa_anual": "0.02"},
+            {"nome": "TR 2,5% a.a.", "taxa_anual": "0.025"},
+        ],
+    }
+    resposta = cliente.post("/api/simulations/compare", json=corpo)
+    assert resposta.status_code == 200
+    resultados = resposta.json()["resultados"]
+    assert len(resultados) == 4
+
+
+def test_saldo_invalido_retorna_422_com_mensagem():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "saldo_devedor": "0"},
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+    assert "saldo" in resposta.json()["detail"].lower()
+
+
+def test_prazo_zero_retorna_422():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "prazo_restante": 0},
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+
+
+def test_taxa_negativa_retorna_422():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "taxa_nominal_anual": "-0.01"},
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+
+
+def test_amortizacao_negativa_retorna_422():
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [{"data": "2027-06-17", "valor": "-100", "estrategia": "reducao_prazo"}],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+
+
+def test_amortizacao_anterior_a_data_base_retorna_422():
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [{"data": "2020-01-01", "valor": "1000", "estrategia": "reducao_prazo"}],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+
+
+def test_valores_fora_de_faixa_retorna_422():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "saldo_devedor": "999999999999"},
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
