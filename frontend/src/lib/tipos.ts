@@ -74,3 +74,31 @@ export interface ResumoCenario {
 export interface CompararSaida {
   resultados: ResumoCenario[];
 }
+
+export interface Usuario {
+  id: number;
+  nome: string;
+  email: string;
+  telefone: string | null;
+  cidade: string;
+  estado: string;
+}
+
+export interface UsuarioCadastroEntrada {
+  nome: string;
+  email: string;
+  senha: string;
+  telefone?: string;
+  cidade: string;
+  estado: string;
+}
+
+export interface UsuarioLoginEntrada {
+  email: string;
+  senha: string;
+}
+
+export interface TokenSaida {
+  token: string;
+  tipo: string;
+}
