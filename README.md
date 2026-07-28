@@ -26,7 +26,11 @@ O motor financeiro (`backend/src/homepilot/core/`) é desacoplado da API: usa ap
 backend/src/homepilot/
 ├── main.py                 API FastAPI, CORS, tratamento de erros
 ├── api/simulacoes.py        endpoints /api/simulations e /compare
+├── api/auth.py               endpoints /api/auth/cadastro, /login, /eu
 ├── esquemas/simulacao.py    Pydantic + conversão para o domínio
+├── esquemas/auth.py          Pydantic de cadastro/login
+├── auth/                     hash de senha, JWT, dependency de rota protegida
+├── bd/                       conexão SQLAlchemy + modelo ORM (MariaDB)
 └── core/
     ├── modelos.py           dataclasses de domínio
     ├── taxas.py              conversões de taxa anual -> mensal
@@ -34,19 +38,34 @@ backend/src/homepilot/
     ├── simulador.py          laço mensal de simulação
     └── resumos.py            indicadores agregados
 
+backend/migrations/          migrations do Alembic (schema do MariaDB)
+
 frontend/src/
-├── App.svelte                orquestra estado e chamadas à API
+├── App.svelte                orquestra estado, autenticação e chamadas à API
 └── lib/
-    ├── api.ts, tipos.ts, moeda.ts, csv.ts
+    ├── api.ts, autenticacao.ts, tipos.ts, moeda.ts, csv.ts
     └── componentes/
         FormularioContrato, AmortizacoesExtras, CartoesResumo,
         GraficoSaldo, GraficoPrestacao, GraficoComposicao,
-        TabelaCronograma, ComparacaoCenarios
+        TabelaCronograma, ComparacaoCenarios, TelaLogin, TelaCadastro
 ```
+
+Ver [`docs/arquitetura.md`](docs/arquitetura.md), [`docs/banco.md`](docs/banco.md) e [`docs/autenticacao.md`](docs/autenticacao.md) para o detalhamento de cada camada.
 
 ## 3. Instalação e execução
 
 ### Sem Docker
+
+**Banco de dados** (MariaDB — necessário para cadastro/login; ver [`docs/banco.md`](docs/banco.md)):
+
+Se você já tem um MariaDB/MySQL instalado na máquina (porta 3306 ocupada), use-o diretamente: crie o banco e o usuário à mão e aponte `HOMEPILOT_DB_*` para ele (ver variáveis abaixo) — não precisa do serviço `banco` do Docker Compose.
+
+Caso prefira o MariaDB via Docker mesmo com um já instalado localmente, o serviço `banco` do `docker-compose.yml` expõe a porta **3307** no host (em vez de 3306) exatamente para não conflitar com uma instalação local:
+
+```bash
+docker compose up banco -d   # MariaDB acessível em localhost:3307
+export HOMEPILOT_DB_PORT=3307
+```
 
 **Backend** (Python 3.11+):
 
@@ -55,10 +74,13 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+alembic upgrade head           # cria a tabela usuarios no MariaDB
 uvicorn homepilot.main:app --reload --port 8000
 ```
 
-Testes do backend:
+Variáveis de ambiente do banco e seus padrões: `HOMEPILOT_DB_HOST=localhost`, `HOMEPILOT_DB_PORT=3306` (mude para `3307` se estiver usando o serviço `banco` do Docker Compose — ver acima), `HOMEPILOT_DB_NOME=homepilot`, `HOMEPILOT_DB_USUARIO=homepilot`, `HOMEPILOT_DB_SENHA=homepilot`, `HOMEPILOT_JWT_SECRET` (tem um valor padrão de desenvolvimento — trocar antes de qualquer uso real).
+
+Testes do backend (usam SQLite local automaticamente — não exigem o MariaDB rodando):
 
 ```bash
 cd backend && source .venv/bin/activate && pytest -q
@@ -179,12 +201,15 @@ source .venv/bin/activate
 pytest -q
 ```
 
-38 testes cobrindo: cálculo da prestação Price (incluindo um caso com cálculo manual verificável), conversão de taxa anual para mensal (nominal e TR), saldo nunca negativo, amortização extraordinária, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, alertas de saldo e de prestação, comparação de cenários e validações da API.
+47 testes cobrindo: cálculo da prestação Price (incluindo um caso com cálculo manual verificável), conversão de taxa anual para mensal (nominal e TR), saldo nunca negativo, amortização extraordinária, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, alertas de saldo e de prestação, comparação de cenários, validações da API e cadastro/login (ver [`docs/autenticacao.md`](docs/autenticacao.md)).
 
 ## 10. Endpoints da API
 
 - `GET /api/health` → `{"status": "ok"}`
 - `POST /api/simulations` → recebe contrato, cenário de TR e amortizações; devolve cronograma mensal e resumo.
 - `POST /api/simulations/compare` → recebe contrato, amortizações e uma lista de cenários de TR; devolve o resumo de cada cenário.
+- `POST /api/auth/cadastro` → cria uma conta (nome, e-mail, senha, telefone opcional, cidade, estado). Retorna 409 se o e-mail já existir.
+- `POST /api/auth/login` → recebe e-mail e senha, devolve `{"token": "...", "tipo": "bearer"}` (JWT). Retorna 401 se as credenciais forem inválidas.
+- `GET /api/auth/eu` → devolve os dados do usuário autenticado (requer `Authorization: Bearer <token>`).
 
-Validações com mensagens em português retornam HTTP 422: saldo inválido, prazo ≤ 0, taxa negativa, amortização negativa, amortização com data anterior à data-base, prestação insuficiente para pagar os juros, valores fora de faixas razoáveis.
+Validações com mensagens em português retornam HTTP 422: saldo inválido, prazo ≤ 0, taxa negativa, amortização negativa, amortização com data anterior à data-base, prestação insuficiente para pagar os juros, valores fora de faixas razoáveis, senha de cadastro menor que 8 caracteres.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import FormularioContrato from "./lib/componentes/FormularioContrato.svelte";
   import AmortizacoesExtras from "./lib/componentes/AmortizacoesExtras.svelte";
   import CartoesResumo from "./lib/componentes/CartoesResumo.svelte";
@@ -7,8 +8,41 @@
   import GraficoComposicao from "./lib/componentes/GraficoComposicao.svelte";
   import TabelaCronograma from "./lib/componentes/TabelaCronograma.svelte";
   import ComparacaoCenarios from "./lib/componentes/ComparacaoCenarios.svelte";
+  import TelaLogin from "./lib/componentes/TelaLogin.svelte";
+  import TelaCadastro from "./lib/componentes/TelaCadastro.svelte";
   import { simular, compararCenarios } from "./lib/api";
-  import type { AmortizacaoExtraordinaria, DadosContrato, ResumoCenario, SimulacaoSaida } from "./lib/tipos";
+  import { buscarUsuarioAtual, limparToken, obterToken } from "./lib/autenticacao";
+  import type {
+    AmortizacaoExtraordinaria,
+    DadosContrato,
+    ResumoCenario,
+    SimulacaoSaida,
+    Usuario,
+  } from "./lib/tipos";
+
+  let usuario: Usuario | null = null;
+  let verificandoSessao = true;
+  let telaAuth: "login" | "cadastro" = "login";
+
+  onMount(async () => {
+    if (obterToken()) {
+      try {
+        usuario = await buscarUsuarioAtual();
+      } catch {
+        limparToken();
+      }
+    }
+    verificandoSessao = false;
+  });
+
+  async function aoAutenticar() {
+    usuario = await buscarUsuarioAtual();
+  }
+
+  function sair() {
+    limparToken();
+    usuario = null;
+  }
 
   function contratoInicial(): DadosContrato {
     return {
@@ -97,33 +131,49 @@
 <header class="cabecalho-app">
   <h1>HomePilot</h1>
   <p>Planejamento inteligente para financiamento imobiliário</p>
+  {#if usuario}
+    <div class="area-usuario">
+      <span>Olá, {usuario.nome.split(" ")[0]}</span>
+      <button class="link-claro" on:click={sair}>Sair</button>
+    </div>
+  {/if}
 </header>
 
-<main>
-  <FormularioContrato bind:contrato bind:cenarioNome bind:taxaTrPersonalizada />
-  <AmortizacoesExtras bind:amortizacoes />
-
-  <div class="barra-acoes">
-    <button class="primario" on:click={aoSimular} disabled={simulando}>
-      {simulando ? "Simulando..." : "Simular"}
-    </button>
-    <button class="secundario" on:click={restaurar}>Restaurar valores iniciais</button>
-  </div>
-
-  {#if erro}
-    <p class="erro">{erro}</p>
+{#if verificandoSessao}
+  <p class="carregando-sessao">Carregando...</p>
+{:else if !usuario}
+  {#if telaAuth === "login"}
+    <TelaLogin {aoAutenticar} irParaCadastro={() => (telaAuth = "cadastro")} />
+  {:else}
+    <TelaCadastro {aoAutenticar} irParaLogin={() => (telaAuth = "login")} />
   {/if}
+{:else}
+  <main>
+    <FormularioContrato bind:contrato bind:cenarioNome bind:taxaTrPersonalizada />
+    <AmortizacoesExtras bind:amortizacoes />
 
-  {#if resultado}
-    <CartoesResumo resumo={resultado.resumo} />
-    <GraficoSaldo parcelas={resultado.parcelas} />
-    <GraficoPrestacao parcelas={resultado.parcelas} limitePrestacao={contrato.limite_prestacao} />
-    <GraficoComposicao parcelas={resultado.parcelas} />
-    <TabelaCronograma parcelas={resultado.parcelas} />
-  {/if}
+    <div class="barra-acoes">
+      <button class="primario" on:click={aoSimular} disabled={simulando}>
+        {simulando ? "Simulando..." : "Simular"}
+      </button>
+      <button class="secundario" on:click={restaurar}>Restaurar valores iniciais</button>
+    </div>
 
-  <ComparacaoCenarios resultados={comparacao} executando={comparando} aoComparar={aoComparar} />
-</main>
+    {#if erro}
+      <p class="erro">{erro}</p>
+    {/if}
+
+    {#if resultado}
+      <CartoesResumo resumo={resultado.resumo} />
+      <GraficoSaldo parcelas={resultado.parcelas} />
+      <GraficoPrestacao parcelas={resultado.parcelas} limitePrestacao={contrato.limite_prestacao} />
+      <GraficoComposicao parcelas={resultado.parcelas} />
+      <TabelaCronograma parcelas={resultado.parcelas} />
+    {/if}
+
+    <ComparacaoCenarios resultados={comparacao} executando={comparando} aoComparar={aoComparar} />
+  </main>
+{/if}
 
 <style>
   .cabecalho-app {
@@ -139,6 +189,27 @@
   .cabecalho-app p {
     margin: 0.25rem 0 0 0;
     opacity: 0.9;
+  }
+  .area-usuario {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+  }
+  .link-claro {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .carregando-sessao {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
   }
   main {
     max-width: 1100px;

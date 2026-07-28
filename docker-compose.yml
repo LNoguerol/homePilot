@@ -1,13 +1,40 @@
 services:
+  banco:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: homepilot
+      MARIADB_USER: homepilot
+      MARIADB_PASSWORD: homepilot
+      MARIADB_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - banco_dados:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     image: python:3.12-slim
     working_dir: /app
     volumes:
       - ./backend:/app
     command: >
-      bash -c "pip install -e '.[dev]' && uvicorn homepilot.main:app --host 0.0.0.0 --port 8000"
+      bash -c "pip install -e '.[dev]' && alembic upgrade head && uvicorn homepilot.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
+    environment:
+      - HOMEPILOT_DB_HOST=banco
+      - HOMEPILOT_DB_PORT=3306
+      - HOMEPILOT_DB_NOME=homepilot
+      - HOMEPILOT_DB_USUARIO=homepilot
+      - HOMEPILOT_DB_SENHA=homepilot
+      - HOMEPILOT_JWT_SECRET=chave-secreta-dev-trocar-em-producao
+    depends_on:
+      banco:
+        condition: service_healthy
 
   frontend:
     image: node:20-slim
@@ -22,3 +49,6 @@ services:
       - VITE_API_PROXY_TARGET=http://backend:8000
     depends_on:
       - backend
+
+volumes:
+  banco_dados:
