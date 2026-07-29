@@ -10,6 +10,7 @@
   import ComparacaoCenarios from "./lib/componentes/ComparacaoCenarios.svelte";
   import TelaLogin from "./lib/componentes/TelaLogin.svelte";
   import TelaCadastro from "./lib/componentes/TelaCadastro.svelte";
+  import Logo from "./lib/componentes/Logo.svelte";
   import { simular, compararCenarios } from "./lib/api";
   import { buscarUsuarioAtual, limparToken, obterToken } from "./lib/autenticacao";
   import type {
@@ -128,13 +129,15 @@
   }
 </script>
 
-<header class="cabecalho-app">
-  <h1>HomePilot</h1>
-  <p>Planejamento inteligente para financiamento imobiliário</p>
+<header class="barra-topo">
+  <div class="marca">
+    <Logo tamanho={30} />
+    <span class="nome-marca">HomePilot</span>
+  </div>
   {#if usuario}
     <div class="area-usuario">
       <span>Olá, {usuario.nome.split(" ")[0]}</span>
-      <button class="link-claro" on:click={sair}>Sair</button>
+      <button class="botao-sair" on:click={sair}>Sair</button>
     </div>
   {/if}
 </header>
@@ -149,6 +152,7 @@
   {/if}
 {:else}
   <main>
+    <p class="subtitulo">Planejamento inteligente para financiamento imobiliário</p>
     <FormularioContrato bind:contrato bind:cenarioNome bind:taxaTrPersonalizada />
     <AmortizacoesExtras bind:amortizacoes />
 
@@ -176,45 +180,63 @@
 {/if}
 
 <style>
-  .cabecalho-app {
-    text-align: center;
-    padding: 1.5rem 1rem;
-    background: linear-gradient(135deg, #2f6f4f, #244f38);
-    color: white;
+  .barra-topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.5rem;
+    background: var(--cor-superficie);
+    border-bottom: 1px solid var(--cor-borda);
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
-  .cabecalho-app h1 {
-    margin: 0;
-    font-size: 1.8rem;
+  .marca {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
   }
-  .cabecalho-app p {
-    margin: 0.25rem 0 0 0;
-    opacity: 0.9;
+  .nome-marca {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--cor-texto);
+    letter-spacing: -0.02em;
   }
   .area-usuario {
     display: flex;
-    justify-content: center;
     align-items: center;
-    gap: 0.75rem;
-    margin-top: 0.75rem;
+    gap: 0.85rem;
     font-size: 0.9rem;
+    color: var(--cor-texto-secundario);
   }
-  .link-claro {
+  .botao-sair {
     background: none;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 6px;
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--raio-sm);
     cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .botao-sair:hover {
+    background: var(--cor-fundo);
+    border-color: #c9cdd4;
   }
   .carregando-sessao {
     text-align: center;
-    padding: 2rem;
-    color: #666;
+    padding: 3rem;
+    color: var(--cor-texto-secundario);
   }
   main {
     max-width: 1100px;
     margin: 0 auto;
-    padding: 1.25rem;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+  .subtitulo {
+    color: var(--cor-texto-secundario);
+    margin: 0 0 1.25rem 0;
+    font-size: 0.95rem;
   }
   .barra-acoes {
     display: flex;
@@ -226,24 +248,39 @@
     background: var(--cor-destaque);
     color: white;
     border: none;
-    padding: 0.55rem 1.4rem;
-    border-radius: 6px;
+    padding: 0.65rem 1.5rem;
+    border-radius: var(--raio-sm);
     font-size: 0.95rem;
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .primario:hover:not(:disabled) {
+    background: var(--cor-destaque-hover);
+  }
+  .primario:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   .secundario {
-    background: transparent;
-    border: 1px solid var(--cor-destaque);
-    color: var(--cor-destaque);
-    padding: 0.5rem 1.2rem;
-    border-radius: 6px;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    padding: 0.6rem 1.3rem;
+    border-radius: var(--raio-sm);
     cursor: pointer;
+    font-size: 0.95rem;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .secundario:hover {
+    background: var(--cor-fundo);
+    border-color: #c9cdd4;
   }
   .erro {
-    background: #fdeaea;
+    background: var(--cor-perigo-fundo);
     color: #a12020;
     padding: 0.75rem 1rem;
-    border-radius: 6px;
+    border-radius: var(--raio-sm);
     margin-bottom: 1rem;
   }
 </style>

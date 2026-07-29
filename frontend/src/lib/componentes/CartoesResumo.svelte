@@ -47,27 +47,33 @@
     margin-bottom: 1.5rem;
   }
   .cartao {
-    background: var(--cor-cartao);
-    border-radius: 10px;
-    padding: 1rem 1.2rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    box-shadow: var(--sombra-cartao);
+    border-radius: var(--raio-md);
+    padding: 1.1rem 1.3rem;
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    border-left: 4px solid var(--cor-destaque);
+    gap: 0.35rem;
+    border-left: 3px solid var(--cor-destaque);
   }
   .cartao.alerta {
-    border-left-color: #d64545;
+    border-left-color: var(--cor-perigo);
   }
   .rotulo {
-    font-size: 0.78rem;
-    color: #666;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--cor-texto-secundario);
   }
   .valor {
-    font-size: 1.15rem;
-    font-weight: 600;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--cor-texto);
   }
   .detalhe {
     font-size: 0.78rem;
-    color: #888;
+    color: var(--cor-texto-secundario);
   }
 </style>

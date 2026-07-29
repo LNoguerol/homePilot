@@ -90,32 +90,45 @@
 
 <style>
   .secao {
-    background: var(--cor-cartao);
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    box-shadow: var(--sombra-cartao);
+    border-radius: var(--raio-md);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
   }
   .secao h3 {
-    margin: 0 0 0.75rem 0;
-    font-size: 0.95rem;
+    margin: 0 0 0.9rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
     color: var(--cor-destaque);
   }
   .grade {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem;
+    gap: 0.9rem;
   }
   label {
     display: flex;
     flex-direction: column;
-    font-size: 0.85rem;
-    gap: 0.25rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--cor-texto-secundario);
+    gap: 0.35rem;
   }
   input,
   select {
-    padding: 0.4rem 0.5rem;
-    border-radius: 6px;
-    border: 1px solid #ccc;
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--raio-sm);
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
     font-size: 0.9rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:focus,
+  select:focus {
+    border-color: var(--cor-destaque);
+    box-shadow: 0 0 0 3px var(--cor-destaque-fundo);
   }
 </style>
