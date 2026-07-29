@@ -1,5 +1,6 @@
 <script lang="ts">
   import { login, salvarToken } from "../autenticacao";
+  import Logo from "./Logo.svelte";
 
   export let aoAutenticar: () => void;
   export let irParaCadastro: () => void;
@@ -26,6 +27,10 @@
 
 <div class="tela-auth">
   <form on:submit|preventDefault={aoEntrar}>
+    <div class="marca-form">
+      <Logo tamanho={36} />
+      <span class="nome-marca">HomePilot</span>
+    </div>
     <h2>Entrar</h2>
     <label>
       E-mail
@@ -49,36 +54,73 @@
   .tela-auth {
     display: flex;
     justify-content: center;
-    padding: 3rem 1rem;
+    padding: 4rem 1rem;
   }
   form {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.85rem;
     width: 100%;
-    max-width: 360px;
-    background: var(--cor-cartao);
-    padding: 1.5rem;
-    border-radius: 8px;
+    max-width: 380px;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    box-shadow: var(--sombra-cartao);
+    padding: 2rem;
+    border-radius: var(--raio-md);
+  }
+  .marca-form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  .nome-marca {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--cor-texto);
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    margin: 0 0 0.25rem 0;
+    text-align: center;
+    font-size: 1.15rem;
   }
   label {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.9rem;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--cor-texto-secundario);
   }
   input {
-    padding: 0.5rem;
-    border-radius: 4px;
-    border: 1px solid #ccc;
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--raio-sm);
+    border: 1px solid var(--cor-borda);
+    font-size: 0.9rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:focus {
+    border-color: var(--cor-destaque);
+    box-shadow: 0 0 0 3px var(--cor-destaque-fundo);
   }
   button[type="submit"] {
     background: var(--cor-destaque);
     color: white;
     border: none;
-    padding: 0.6rem;
-    border-radius: 6px;
+    padding: 0.65rem;
+    border-radius: var(--raio-sm);
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button[type="submit"]:hover:not(:disabled) {
+    background: var(--cor-destaque-hover);
+  }
+  button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   .link {
     background: none;
@@ -86,17 +128,20 @@
     color: var(--cor-destaque);
     cursor: pointer;
     padding: 0;
+    font-weight: 600;
     text-decoration: underline;
   }
   .erro {
-    background: #fdeaea;
+    background: var(--cor-perigo-fundo);
     color: #a12020;
-    padding: 0.5rem;
-    border-radius: 6px;
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--raio-sm);
     font-size: 0.85rem;
   }
   .alternativa {
     font-size: 0.85rem;
+    color: var(--cor-texto-secundario);
     text-align: center;
+    margin: 0;
   }
 </style>

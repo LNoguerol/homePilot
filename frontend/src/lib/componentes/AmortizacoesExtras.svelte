@@ -41,21 +41,24 @@
 
 <style>
   .secao {
-    background: var(--cor-cartao);
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    box-shadow: var(--sombra-cartao);
+    border-radius: var(--raio-md);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
   }
   .secao h3 {
-    margin: 0 0 0.75rem 0;
-    font-size: 0.95rem;
+    margin: 0 0 0.9rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
     color: var(--cor-destaque);
   }
   .lista {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.9rem;
   }
   .linha {
     display: grid;
@@ -66,31 +69,52 @@
   label {
     display: flex;
     flex-direction: column;
-    font-size: 0.8rem;
-    gap: 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--cor-texto-secundario);
+    gap: 0.3rem;
   }
   input,
   select {
-    padding: 0.35rem 0.5rem;
-    border-radius: 6px;
-    border: 1px solid #ccc;
+    padding: 0.4rem 0.55rem;
+    border-radius: var(--raio-sm);
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
     font-size: 0.85rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:focus,
+  select:focus {
+    border-color: var(--cor-destaque);
+    box-shadow: 0 0 0 3px var(--cor-destaque-fundo);
   }
   .remover {
-    background: #d64545;
-    color: white;
-    border: none;
-    border-radius: 6px;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-perigo);
+    border-radius: var(--raio-sm);
     padding: 0.4rem 0.6rem;
     cursor: pointer;
     height: fit-content;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .remover:hover {
+    background: var(--cor-perigo-fundo);
+    border-color: var(--cor-perigo);
   }
   .secundario {
-    background: transparent;
-    border: 1px solid var(--cor-destaque);
-    color: var(--cor-destaque);
-    padding: 0.45rem 0.9rem;
-    border-radius: 6px;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    padding: 0.55rem 1.1rem;
+    border-radius: var(--raio-sm);
     cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .secundario:hover {
+    background: var(--cor-fundo);
+    border-color: #c9cdd4;
   }
 </style>

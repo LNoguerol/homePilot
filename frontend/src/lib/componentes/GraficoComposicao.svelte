@@ -32,7 +32,7 @@
             data: acumular("amortizacao_ordinaria").map(
               (v, i) => v + acumular("amortizacao_extraordinaria")[i],
             ),
-            borderColor: "#2f6f4f",
+            borderColor: "#1f6b4e",
             fill: false,
           },
           { label: "Correção TR acumulada", data: acumular("correcao_tr"), borderColor: "#8a4fd6", fill: false },
@@ -73,9 +73,11 @@
 
 <style>
   .grafico-container {
-    background: var(--cor-cartao);
-    border-radius: 10px;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    box-shadow: var(--sombra-cartao);
+    border-radius: var(--raio-md);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
   }
 </style>

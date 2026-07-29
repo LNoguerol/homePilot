@@ -21,8 +21,8 @@
           {
             label: "Saldo devedor (R$)",
             data: parcelas.map((p) => Number(p.saldo_final)),
-            borderColor: "#2f6f4f",
-            backgroundColor: "#2f6f4f22",
+            borderColor: "#1f6b4e",
+            backgroundColor: "#1f6b4e22",
             tension: 0.15,
             fill: true,
           },
@@ -56,9 +56,11 @@
 
 <style>
   .grafico-container {
-    background: var(--cor-cartao);
-    border-radius: 10px;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    box-shadow: var(--sombra-cartao);
+    border-radius: var(--raio-md);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
   }
 </style>

@@ -1,6 +1,18 @@
 :root {
-  --cor-cartao: #f7f8f6;
-  --cor-destaque: #2f6f4f;
+  --cor-fundo: #f5f6f8;
+  --cor-superficie: #ffffff;
+  --cor-cartao: #ffffff;
+  --cor-borda: #e4e7ec;
+  --cor-texto: #1a1d1f;
+  --cor-texto-secundario: #667085;
+  --cor-destaque: #1f6b4e;
+  --cor-destaque-hover: #154f3a;
+  --cor-destaque-fundo: #e8f4ef;
+  --cor-perigo: #dc2626;
+  --cor-perigo-fundo: #fef2f2;
+  --raio-sm: 8px;
+  --raio-md: 12px;
+  --sombra-cartao: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
   color-scheme: light;
 }
 
@@ -8,13 +20,32 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: #ffffff;
-  color: #1c1c1c;
+  font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
 }
 
 button {
   font-family: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--cor-destaque);
+  outline-offset: 2px;
 }
