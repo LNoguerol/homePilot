@@ -117,3 +117,53 @@ def test_taxa_tr_negativa_levanta_erro():
 def test_valores_fora_de_faixa_razoavel_levantam_erro():
     with pytest.raises(ErroSimulacaoInvalida):
         simular(contrato_padrao(saldo_devedor=Decimal("999999999999")), CenarioTR("TR", Decimal("0.015")))
+
+
+# --- SAC (Sistema de Amortização Constante) ---
+
+SEM_TR = CenarioTR("TR 0,0% a.a.", Decimal("0.0"))
+
+
+def contrato_sac(**sobrescritas) -> DadosContrato:
+    return contrato_padrao(sistema_amortizacao=SistemaAmortizacao.SAC, **sobrescritas)
+
+
+def test_sac_mantem_a_amortizacao_constante_sem_correcao_de_tr():
+    """Sem TR corrigindo o saldo, a amortização mensal do SAC deve ser idêntica
+    em todos os meses (a menos de arredondamento de centavos)."""
+    resultado = simular(contrato_sac(), SEM_TR)
+    amortizacoes = {p.amortizacao_ordinaria for p in resultado.parcelas}
+    # 332.786,77 / 376 = 885,0711... — a divisão não é exata, então redistribuir
+    # o resíduo mês a mês faz a fatia oscilar em no máximo um centavo.
+    assert amortizacoes <= {Decimal("885.07"), Decimal("885.08")}
+
+
+def test_sac_tem_prestacao_decrescente():
+    resultado = simular(contrato_sac(), SEM_TR)
+    prestacoes = [p.prestacao_financeira for p in resultado.parcelas]
+    assert all(anterior > seguinte for anterior, seguinte in zip(prestacoes, prestacoes[1:]))
+
+
+def test_sac_comeca_com_prestacao_maior_e_paga_menos_juros_que_a_price():
+    """Comparação clássica entre os dois sistemas para o mesmo contrato: o SAC
+    exige prestação inicial maior, mas custa menos juros no total."""
+    resultado_price = simular(contrato_padrao(), SEM_TR)
+    resultado_sac = simular(contrato_sac(), SEM_TR)
+
+    assert resultado_sac.parcelas[0].prestacao_total > resultado_price.parcelas[0].prestacao_total
+    assert resultado_sac.parcelas[-1].prestacao_total < resultado_price.parcelas[-1].prestacao_total
+    assert resultado_sac.resumo.total_juros < resultado_price.resumo.total_juros
+
+
+def test_sac_zera_o_saldo_na_ultima_parcela():
+    resultado = simular(contrato_sac(), CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    ultima = resultado.parcelas[-1]
+    assert ultima.saldo_final == Decimal("0.00")
+    assert ultima.prazo_restante == 0
+    assert all(p.saldo_final >= 0 for p in resultado.parcelas)
+
+
+def test_sac_respeita_o_prazo_restante_contratado_sem_amortizacao_extra():
+    contrato = contrato_sac(saldo_devedor=Decimal("50000.00"), prazo_original=24, prazo_restante=24)
+    resultado = simular(contrato, SEM_TR)
+    assert resultado.resumo.meses_ate_quitacao == 24

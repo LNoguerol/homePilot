@@ -15,6 +15,7 @@ class SistemaAmortizacao(str, Enum):
     """Sistema de amortização utilizado no contrato."""
 
     PRICE = "price"
+    SAC = "sac"
 
 
 class Indexador(str, Enum):
@@ -49,10 +50,30 @@ class DadosContrato:
 
 @dataclass
 class AmortizacaoExtraordinaria:
-    """Um evento de amortização extraordinária (ex.: aporte de FGTS)."""
+    """Um evento pontual de amortização extraordinária (FGTS, 13º, bônus, etc.)."""
 
     data: date
     valor: Decimal
+    estrategia: EstrategiaAmortizacao
+
+
+@dataclass
+class AporteRecorrente:
+    """Um aporte extraordinário que se repete a cada N meses.
+
+    Existe para expressar em poucos campos o que exigiria centenas de eventos
+    pontuais — o caso típico é "R$ 500 a mais todo mês até quitar". O motor
+    expande a recorrência mês a mês durante a simulação; ela nunca é
+    materializada como uma lista de `AmortizacaoExtraordinaria`.
+
+    `mes_inicial` e `mes_final` são tratados com granularidade de **competência**
+    (ano e mês); o dia é ignorado. `mes_final=None` significa "até quitar".
+    """
+
+    valor: Decimal
+    periodicidade_meses: int
+    mes_inicial: date
+    mes_final: date | None
     estrategia: EstrategiaAmortizacao
 
 

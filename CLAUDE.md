@@ -1,6 +1,6 @@
 # HomePilot
 
-Simulador de financiamento imobiliário brasileiro (Tabela Price + TR + amortizações extraordinárias de FGTS). Ver `README.md` para arquitetura completa, fórmulas e instruções de instalação — este arquivo cobre apenas convenções e contexto que não estão lá.
+Simulador de financiamento imobiliário brasileiro (Tabela Price ou SAC + TR + amortizações extraordinárias). Ver `README.md` para arquitetura completa, fórmulas e instruções de instalação — este arquivo cobre apenas convenções e contexto que não estão lá.
 
 ## Convenção de idioma
 
@@ -17,17 +17,21 @@ frontend/src/                    Svelte + TS + Vite + Chart.js
 
 O frontend nunca calcula nada financeiro — apenas envia dados e exibe o que o backend retorna.
 
+Cada campo da tela tem um botão "?" (`componentes/Ajuda.svelte`) com sua explicação. Os textos moram num objeto `textos` no `<script>` do componente que tem os campos, não dentro do `Ajuda`. Ao mudar uma regra financeira, revisar esses textos — eles são a única explicação que o usuário final lê.
+
 ## Decisões financeiras chave
 
 - Taxa de juros mensal = `taxa_nominal_anual / 12` (proporcionalidade simples), **não** a taxa efetiva informada no contrato. Confirmado numericamente para o cenário inicial: `(1+0,1002/12)^12-1 ≈ 10,49%`, batendo com a taxa efetiva do contrato.
 - TR (e demais indexadores) convertida por juros compostos: `(1+taxa_anual)^(1/12)-1`.
-- A prestação Price é **recalculada todo mês** com base no saldo corrigido e prazo restante vigentes, em vez de fixada uma única vez — isso resolve o ajuste da última parcela sem caso especial.
+- A prestação Price é **recalculada todo mês** com base no saldo corrigido e prazo restante vigentes, em vez de fixada uma única vez — isso resolve o ajuste da última parcela sem caso especial. O mesmo vale para a amortização do SAC (`saldo / prazo`).
+- Aportes extraordinários da **mesma competência somam** (pontuais entre si e com o recorrente). A regra antiga aplicava só o primeiro e descartava o resto — foi revogada porque um aporte recorrente mensal engoliria todo aporte pontual do contrato. Ver `docs/regras-financeiras.md` §4.0.
+- Price e SAC diferem em apenas **dois pontos** do motor, ambos isolados em helpers de `core/simulador.py`: `_calcular_prestacao_e_amortizacao` (qual grandeza é calculada e qual é derivada) e `_calcular_prazo_apos_reducao` (qual grandeza é preservada na redução de prazo). Um terceiro sistema deve entrar por esses dois helpers, não espalhando `if` pelo laço mensal.
 - Todo cálculo monetário usa `Decimal` com `ROUND_HALF_UP` a cada etapa — nunca `float`.
 
 ## Rodar e testar
 
 ```bash
-cd backend && source .venv/bin/activate && pytest -q   # 38 testes
+cd backend && source .venv/bin/activate && pytest -q   # 80 testes
 cd frontend && npm run build                            # build de produção
 ```
 

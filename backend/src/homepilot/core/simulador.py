@@ -5,25 +5,35 @@ Implementa a convenção descrita na seção 6 do README do projeto:
 1. Obter o saldo inicial do mês.
 2. Aplicar a correção monetária pela TR.
 3. Calcular os juros do período sobre o saldo já corrigido.
-4. Calcular a prestação financeira pela Tabela Price (recalculada a cada mês
-   com base no saldo corrigido e no prazo restante vigentes).
-5. Calcular a amortização ordinária = prestação financeira - juros.
-6. Aplicar a amortização ordinária.
-7. Aplicar eventual amortização extraordinária do mês.
-8. Recalcular o prazo (redução de prazo) ou a prestação (redução de
+4. Calcular a prestação financeira e a amortização ordinária pelo sistema de
+   amortização do contrato (Tabela Price ou SAC), recalculadas a cada mês com
+   base no saldo corrigido e no prazo restante vigentes.
+5. Aplicar a amortização ordinária.
+6. Aplicar eventual amortização extraordinária do mês.
+7. Recalcular o prazo (redução de prazo) ou a prestação (redução de
    prestação), conforme a estratégia da amortização extraordinária.
-9. Somar seguros e tarifas para obter a prestação total.
-10. Registrar o saldo final do mês.
+8. Somar seguros e tarifas para obter a prestação total.
+9. Registrar o saldo final do mês.
 
-Importante: recalcular a prestação financeira todo mês com base no saldo
-corrigido pela TR (em vez de mantê-la fixa do início ao fim) é o que permite
-que a prestação acompanhe a evolução da TR ao longo do contrato, como ocorre
-na prática em financiamentos SFH indexados à TR. Como consequência natural
-dessa recorrência, quando resta exatamente 1 mês de prazo a fórmula da Tabela
-Price devolve automaticamente o valor exato para zerar o saldo (saldo +
-juros), o que resolve o ajuste da última parcela sem necessidade de um caso
-especial. Esta é uma simplificação deliberada — não reproduz necessariamente
-critérios internos de um banco específico.
+A diferença entre os dois sistemas está concentrada no passo 4 e na forma de
+recalcular o prazo no passo 7:
+
+- **Price**: a prestação financeira é a grandeza calculada e a amortização
+  ordinária é o resíduo (prestação - juros). Prestação praticamente constante,
+  amortização crescente.
+- **SAC**: a amortização ordinária é a grandeza calculada (saldo / prazo) e a
+  prestação é a soma (amortização + juros). Amortização constante, prestação
+  decrescente.
+
+Importante: recalcular esses valores todo mês com base no saldo corrigido pela
+TR (em vez de mantê-los fixos do início ao fim) é o que permite que a prestação
+acompanhe a evolução da TR ao longo do contrato, como ocorre na prática em
+financiamentos SFH indexados à TR. Como consequência natural dessa recorrência,
+quando resta exatamente 1 mês de prazo ambos os sistemas devolvem
+automaticamente o valor exato para zerar o saldo (na Price, saldo + juros; no
+SAC, saldo / 1 + juros), o que resolve o ajuste da última parcela sem
+necessidade de um caso especial. Esta é uma simplificação deliberada — não
+reproduz necessariamente critérios internos de um banco específico.
 """
 from __future__ import annotations
 
@@ -31,17 +41,19 @@ import calendar
 from datetime import date
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 
+from homepilot.core import tabela_price, tabela_sac
 from homepilot.core.excecoes import ErroSimulacaoInvalida
 from homepilot.core.modelos import (
     AmortizacaoExtraordinaria,
+    AporteRecorrente,
     CenarioTR,
     DadosContrato,
     EstrategiaAmortizacao,
     ParcelaMensal,
     ResultadoSimulacao,
+    SistemaAmortizacao,
 )
 from homepilot.core.resumos import montar_resumo
-from homepilot.core.tabela_price import calcular_prazo_para_quitar, calcular_prestacao
 from homepilot.core.taxas import taxa_anual_para_mensal_equivalente, taxa_nominal_anual_para_mensal
 
 CENTAVO = Decimal("0.01")
@@ -66,6 +78,106 @@ def _somar_meses(data_base: date, meses: int) -> date:
 
 def _mesma_competencia(a: date, b: date) -> bool:
     return a.year == b.year and a.month == b.month
+
+
+def _recorrencia_incide_em(recorrente: AporteRecorrente, competencia: date) -> bool:
+    """Diz se a recorrência tem aporte na competência informada.
+
+    Comparações em granularidade de ano/mês: o dia de `mes_inicial`/`mes_final`
+    é irrelevante, como já ocorre no casamento dos aportes pontuais.
+    """
+    meses_desde_inicio = (competencia.year - recorrente.mes_inicial.year) * 12 + (
+        competencia.month - recorrente.mes_inicial.month
+    )
+    if meses_desde_inicio < 0 or meses_desde_inicio % recorrente.periodicidade_meses != 0:
+        return False
+    if recorrente.mes_final is not None:
+        if (competencia.year, competencia.month) > (recorrente.mes_final.year, recorrente.mes_final.month):
+            return False
+    return True
+
+
+def _aportes_da_competencia(
+    competencia: date,
+    pendentes: list[AmortizacaoExtraordinaria],
+    recorrente: AporteRecorrente | None,
+) -> tuple[Decimal, EstrategiaAmortizacao | None]:
+    """Soma todos os aportes que caem na competência e devolve
+    `(valor_total, estrategia)`.
+
+    Todos os aportes de um mesmo mês **somam**: pontuais entre si e com o
+    recorrente. Antes da recorrência existir, o motor aplicava apenas o primeiro
+    aporte da competência e descartava os demais; com um aporte recorrente
+    mensal essa regra descartaria silenciosamente todo aporte pontual do
+    contrato, o que a tornaria indefensável.
+
+    A estratégia vigente é a do primeiro aporte **pontual** do mês, por ser o
+    ato mais deliberado que uma recorrência configurada uma única vez; a do
+    recorrente só vale nos meses sem nenhum aporte pontual.
+
+    Consome de `pendentes` os aportes aplicados (a lista é mutada).
+    """
+    do_mes = [a for a in pendentes if _mesma_competencia(a.data, competencia)]
+    if do_mes:
+        pendentes[:] = [a for a in pendentes if not _mesma_competencia(a.data, competencia)]
+
+    total = sum((a.valor for a in do_mes), Decimal("0"))
+    estrategia = do_mes[0].estrategia if do_mes else None
+
+    if recorrente is not None and _recorrencia_incide_em(recorrente, competencia):
+        total += recorrente.valor
+        if estrategia is None:
+            estrategia = recorrente.estrategia
+
+    return total, estrategia
+
+
+def _calcular_prestacao_e_amortizacao(
+    sistema: SistemaAmortizacao,
+    saldo_corrigido: Decimal,
+    juros: Decimal,
+    taxa_mensal_juros: Decimal,
+    prazo_restante: int,
+) -> tuple[Decimal, Decimal]:
+    """Devolve `(prestacao_financeira, amortizacao_ordinaria)` do mês conforme o
+    sistema de amortização do contrato.
+
+    A ordem do cálculo se inverte entre os dois sistemas: na Price a prestação é
+    calculada e a amortização é o resíduo; no SAC a amortização é calculada e a
+    prestação é a soma com os juros.
+    """
+    if sistema == SistemaAmortizacao.SAC:
+        amortizacao_ordinaria = _arredondar(
+            tabela_sac.calcular_amortizacao_constante(saldo_corrigido, prazo_restante)
+        )
+        if amortizacao_ordinaria <= 0:
+            # Saldo pequeno demais em relação ao prazo para render um centavo por
+            # mês: amortiza o mínimo possível para garantir progresso e quitação.
+            amortizacao_ordinaria = CENTAVO
+        amortizacao_ordinaria = min(amortizacao_ordinaria, _arredondar(saldo_corrigido))
+        return _arredondar(amortizacao_ordinaria + juros), amortizacao_ordinaria
+
+    prestacao_financeira = _arredondar(
+        tabela_price.calcular_prestacao(saldo_corrigido, taxa_mensal_juros, prazo_restante)
+    )
+    return prestacao_financeira, prestacao_financeira - juros
+
+
+def _calcular_prazo_apos_reducao(
+    sistema: SistemaAmortizacao,
+    saldo: Decimal,
+    taxa_mensal_juros: Decimal,
+    prestacao_financeira: Decimal,
+    amortizacao_ordinaria: Decimal,
+) -> int:
+    """Recalcula o prazo restante na estratégia de redução de prazo, mantendo
+    constante a grandeza característica do sistema: a prestação financeira na
+    Price, a amortização mensal no SAC."""
+    if sistema == SistemaAmortizacao.SAC:
+        prazo = tabela_sac.calcular_prazo_para_quitar(saldo, amortizacao_ordinaria)
+    else:
+        prazo = tabela_price.calcular_prazo_para_quitar(saldo, taxa_mensal_juros, prestacao_financeira)
+    return max(1, int(prazo.to_integral_value(rounding=ROUND_CEILING)))
 
 
 def validar_contrato(contrato: DadosContrato) -> None:
@@ -105,6 +217,26 @@ def validar_amortizacoes(contrato: DadosContrato, amortizacoes: list[Amortizacao
             )
 
 
+def validar_aporte_recorrente(contrato: DadosContrato, recorrente: AporteRecorrente | None) -> None:
+    if recorrente is None:
+        return
+    if recorrente.valor <= 0:
+        raise ErroSimulacaoInvalida("O valor do aporte recorrente deve ser maior que zero.")
+    if recorrente.periodicidade_meses < 1:
+        raise ErroSimulacaoInvalida("A periodicidade do aporte recorrente deve ser de pelo menos 1 mês.")
+    if recorrente.periodicidade_meses > LIMITE_PRAZO_RAZOAVEL:
+        raise ErroSimulacaoInvalida("A periodicidade do aporte recorrente está fora de uma faixa razoável.")
+    inicio = (recorrente.mes_inicial.year, recorrente.mes_inicial.month)
+    if inicio < (contrato.data_base.year, contrato.data_base.month):
+        raise ErroSimulacaoInvalida(
+            "O aporte recorrente começa antes da competência da data-base da simulação."
+        )
+    if recorrente.mes_final is not None:
+        fim = (recorrente.mes_final.year, recorrente.mes_final.month)
+        if fim < inicio:
+            raise ErroSimulacaoInvalida("O mês final do aporte recorrente é anterior ao mês inicial.")
+
+
 def validar_taxa_tr(taxa_anual: Decimal) -> None:
     if taxa_anual < 0:
         raise ErroSimulacaoInvalida("A taxa da TR não pode ser negativa.")
@@ -116,13 +248,20 @@ def simular(
     contrato: DadosContrato,
     cenario_tr: CenarioTR,
     amortizacoes: list[AmortizacaoExtraordinaria] | None = None,
+    aporte_recorrente: AporteRecorrente | None = None,
 ) -> ResultadoSimulacao:
     """Executa a simulação mensal completa do financiamento e devolve o
-    cronograma mês a mês junto com o resumo de indicadores."""
+    cronograma mês a mês junto com o resumo de indicadores.
+
+    `amortizacoes` são os aportes pontuais; `aporte_recorrente` é o aporte que se
+    repete a cada N meses e é expandido durante o laço. Os dois convivem: num mês
+    em que ambos incidem, os valores somam.
+    """
     amortizacoes_ordenadas = sorted(amortizacoes or [], key=lambda a: a.data)
 
     validar_contrato(contrato)
     validar_amortizacoes(contrato, amortizacoes_ordenadas)
+    validar_aporte_recorrente(contrato, aporte_recorrente)
     validar_taxa_tr(cenario_tr.taxa_anual)
 
     taxa_mensal_juros = taxa_nominal_anual_para_mensal(contrato.taxa_nominal_anual)
@@ -131,11 +270,15 @@ def simular(
     saldo = contrato.saldo_devedor
     prazo_restante = contrato.prazo_restante
 
-    prestacao_inicial = calcular_prestacao(saldo, taxa_mensal_juros, prazo_restante)
-    if prestacao_inicial <= saldo * taxa_mensal_juros:
-        raise ErroSimulacaoInvalida(
-            "A prestação financeira calculada é insuficiente para pagar os juros do saldo informado."
-        )
+    # Checagem só necessária na Price, onde a amortização é o resíduo da
+    # prestação: no SAC a amortização é somada aos juros, então a prestação é
+    # sempre suficiente por construção.
+    if contrato.sistema_amortizacao == SistemaAmortizacao.PRICE:
+        prestacao_inicial = tabela_price.calcular_prestacao(saldo, taxa_mensal_juros, prazo_restante)
+        if prestacao_inicial <= saldo * taxa_mensal_juros:
+            raise ErroSimulacaoInvalida(
+                "A prestação financeira calculada é insuficiente para pagar os juros do saldo informado."
+            )
 
     parcelas: list[ParcelaMensal] = []
     amortizacoes_pendentes = list(amortizacoes_ordenadas)
@@ -155,29 +298,37 @@ def simular(
         saldo_corrigido = saldo_inicial + correcao_tr
         juros = _arredondar(saldo_corrigido * taxa_mensal_juros)
 
-        prestacao_financeira = _arredondar(calcular_prestacao(saldo_corrigido, taxa_mensal_juros, prazo_restante))
-        amortizacao_ordinaria = prestacao_financeira - juros
+        prestacao_financeira, amortizacao_ordinaria = _calcular_prestacao_e_amortizacao(
+            contrato.sistema_amortizacao,
+            saldo_corrigido,
+            juros,
+            taxa_mensal_juros,
+            prazo_restante,
+        )
         saldo_apos_ordinaria = saldo_corrigido - amortizacao_ordinaria
 
-        amortizacao_extra = Decimal("0")
         estrategia_aplicada: EstrategiaAmortizacao | None = None
 
-        evento = next(
-            (a for a in amortizacoes_pendentes if _mesma_competencia(a.data, competencia)),
-            None,
+        valor_aportes, estrategia_do_mes = _aportes_da_competencia(
+            competencia, amortizacoes_pendentes, aporte_recorrente
         )
+        # limitado ao saldo disponível: um aporte nunca deixa o saldo negativo
+        amortizacao_extra = min(valor_aportes, saldo_apos_ordinaria) if valor_aportes > 0 else Decimal("0")
 
-        if evento is not None:
-            amortizacoes_pendentes.remove(evento)
-            amortizacao_extra = min(evento.valor, saldo_apos_ordinaria)
-            estrategia_aplicada = evento.estrategia
+        if amortizacao_extra > 0:
+            estrategia_aplicada = estrategia_do_mes
             saldo_apos_extra = saldo_apos_ordinaria - amortizacao_extra
 
             if saldo_apos_extra <= 0:
                 prazo_restante = 1
             elif estrategia_aplicada == EstrategiaAmortizacao.REDUCAO_PRAZO:
-                novo_prazo = calcular_prazo_para_quitar(saldo_apos_extra, taxa_mensal_juros, prestacao_financeira)
-                prazo_restante = max(1, int(novo_prazo.to_integral_value(rounding=ROUND_CEILING)))
+                prazo_restante = _calcular_prazo_apos_reducao(
+                    contrato.sistema_amortizacao,
+                    saldo_apos_extra,
+                    taxa_mensal_juros,
+                    prestacao_financeira,
+                    amortizacao_ordinaria,
+                )
             else:  # REDUCAO_PRESTACAO: mantém o prazo restante, apenas decrementa o mês corrente
                 prazo_restante = prazo_restante - 1 if prazo_restante > 1 else 1
         else:

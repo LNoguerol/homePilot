@@ -103,6 +103,54 @@ def test_amortizacao_maior_que_o_saldo_restante_quita_o_financiamento():
     assert parcela_evento.amortizacao_extraordinaria <= parcela_evento.saldo_corrigido
 
 
+def test_reducao_de_prazo_no_sac_mantem_a_amortizacao_e_antecipa_a_quitacao():
+    """No SAC, a grandeza preservada na redução de prazo é a amortização mensal
+    (e não a prestação, como na Price)."""
+    contrato = contrato_padrao(sistema_amortizacao=SistemaAmortizacao.SAC)
+    amortizacoes = [
+        AmortizacaoExtraordinaria(date(2027, 6, 17), Decimal("40000"), EstrategiaAmortizacao.REDUCAO_PRAZO)
+    ]
+    sem_extra = simular(contrato, CENARIO_TR, [])
+    com_extra = simular(contrato, CENARIO_TR, amortizacoes)
+
+    assert com_extra.resumo.meses_ate_quitacao < sem_extra.resumo.meses_ate_quitacao
+
+    parcela_evento = next(p for p in com_extra.parcelas if p.competencia.year == 2027 and p.competencia.month == 6)
+    parcela_seguinte = com_extra.parcelas[parcela_evento.numero_mes]
+    assert abs(parcela_seguinte.amortizacao_ordinaria - parcela_evento.amortizacao_ordinaria) < Decimal("5.00")
+
+
+def test_reducao_de_prestacao_no_sac_mantem_o_prazo_e_reduz_a_prestacao():
+    contrato = contrato_padrao(sistema_amortizacao=SistemaAmortizacao.SAC)
+    amortizacoes = [
+        AmortizacaoExtraordinaria(date(2027, 6, 17), Decimal("40000"), EstrategiaAmortizacao.REDUCAO_PRESTACAO)
+    ]
+    sem_extra = simular(contrato, CENARIO_TR, [])
+    com_extra = simular(contrato, CENARIO_TR, amortizacoes)
+
+    parcela_evento = next(p for p in com_extra.parcelas if p.competencia.year == 2027 and p.competencia.month == 6)
+    parcela_seguinte = com_extra.parcelas[parcela_evento.numero_mes]
+
+    assert abs(com_extra.resumo.meses_ate_quitacao - sem_extra.resumo.meses_ate_quitacao) <= 1
+    assert parcela_seguinte.prestacao_financeira < parcela_evento.prestacao_financeira - Decimal("100.00")
+
+
+def test_amortizacao_maior_que_o_saldo_quita_o_financiamento_no_sac():
+    contrato = contrato_padrao(
+        sistema_amortizacao=SistemaAmortizacao.SAC,
+        saldo_devedor=Decimal("40000.00"),
+        prazo_restante=24,
+    )
+    amortizacoes = [
+        AmortizacaoExtraordinaria(date(2027, 6, 17), Decimal("1000000.00"), EstrategiaAmortizacao.REDUCAO_PRAZO)
+    ]
+    resultado = simular(contrato, CENARIO_TR, amortizacoes)
+
+    parcela_evento = next(p for p in resultado.parcelas if p.competencia.year == 2027 and p.competencia.month == 6)
+    assert parcela_evento.saldo_final == Decimal("0.00")
+    assert resultado.parcelas[-1].saldo_final == Decimal("0.00")
+
+
 def test_varias_amortizacoes_extraordinarias_no_cenario_inicial_do_fgts():
     contrato = contrato_padrao()
     amortizacoes = [

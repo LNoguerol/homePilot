@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from homepilot.core.modelos import (
     AmortizacaoExtraordinaria,
+    AporteRecorrente,
     CenarioTR,
     DadosContrato,
     EstrategiaAmortizacao,
@@ -20,12 +21,13 @@ from homepilot.core.modelos import (
 )
 
 EstrategiaLiteral = Literal["reducao_prazo", "reducao_prestacao"]
+SistemaAmortizacaoLiteral = Literal["price", "sac"]
 
 
 class ContratoEntrada(BaseModel):
     data_base: date
     saldo_devedor: Decimal
-    sistema_amortizacao: Literal["price"] = "price"
+    sistema_amortizacao: SistemaAmortizacaoLiteral = "price"
     indexador: Literal["tr"] = "tr"
     taxa_nominal_anual: Decimal
     taxa_efetiva_informada: Decimal
@@ -42,6 +44,20 @@ class AmortizacaoEntrada(BaseModel):
     estrategia: EstrategiaLiteral = "reducao_prazo"
 
 
+class AporteRecorrenteEntrada(BaseModel):
+    """Aporte extraordinário que se repete a cada N meses.
+
+    Alternativa a cadastrar centenas de `AmortizacaoEntrada` para expressar algo
+    como "R$ 500 a mais todo mês". `mes_final=None` significa "até quitar".
+    """
+
+    valor: Decimal
+    periodicidade_meses: int = Field(default=1, ge=1)
+    mes_inicial: date
+    mes_final: date | None = None
+    estrategia: EstrategiaLiteral = "reducao_prazo"
+
+
 class CenarioTREntrada(BaseModel):
     nome: str
     taxa_anual: Decimal
@@ -51,6 +67,7 @@ class SimulacaoEntrada(BaseModel):
     contrato: ContratoEntrada
     cenario_tr: CenarioTREntrada
     amortizacoes: list[AmortizacaoEntrada] = Field(default_factory=list)
+    aporte_recorrente: AporteRecorrenteEntrada | None = None
 
 
 class ParcelaSaida(BaseModel):
@@ -96,6 +113,7 @@ class SimulacaoSaida(BaseModel):
 class CompararEntrada(BaseModel):
     contrato: ContratoEntrada
     amortizacoes: list[AmortizacaoEntrada] = Field(default_factory=list)
+    aporte_recorrente: AporteRecorrenteEntrada | None = None
     cenarios: list[CenarioTREntrada]
 
 
@@ -129,6 +147,20 @@ def amortizacao_para_dominio(entrada: AmortizacaoEntrada) -> AmortizacaoExtraord
     return AmortizacaoExtraordinaria(
         data=entrada.data,
         valor=entrada.valor,
+        estrategia=EstrategiaAmortizacao(entrada.estrategia),
+    )
+
+
+def aporte_recorrente_para_dominio(
+    entrada: AporteRecorrenteEntrada | None,
+) -> AporteRecorrente | None:
+    if entrada is None:
+        return None
+    return AporteRecorrente(
+        valor=entrada.valor,
+        periodicidade_meses=entrada.periodicidade_meses,
+        mes_inicial=entrada.mes_inicial,
+        mes_final=entrada.mes_final,
         estrategia=EstrategiaAmortizacao(entrada.estrategia),
     )
 

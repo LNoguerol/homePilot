@@ -1,12 +1,12 @@
 # HomePilot
 
-Simulação e planejamento de financiamentos imobiliários brasileiros (Tabela Price + TR + amortizações extraordinárias com FGTS).
+Simulação e planejamento de financiamentos imobiliários brasileiros (Tabela Price ou SAC + TR + amortizações extraordinárias).
 
 > **Aviso:** Este projeto é uma ferramenta educacional e de planejamento. Os resultados são estimativas e não substituem o demonstrativo oficial da instituição financeira, orientação jurídica, contábil ou financeira.
 
 ## 1. Objetivo
 
-Permitir simular um financiamento pela Tabela Price, com correção do saldo pela TR, aplicar amortizações extraordinárias (ex.: FGTS) por redução de prazo ou de prestação, e acompanhar se o saldo devedor e a prestação total respeitam limites configuráveis (padrão: R$ 350.000,00 e R$ 3.800,00).
+Permitir simular um financiamento pela Tabela Price ou pelo SAC, com correção do saldo pela TR, aplicar amortizações extraordinárias (ex.: FGTS) por redução de prazo ou de prestação, e acompanhar se o saldo devedor e a prestação total respeitam limites configuráveis (padrão: R$ 350.000,00 e R$ 3.800,00).
 
 ## 2. Arquitetura
 
@@ -35,6 +35,7 @@ backend/src/homepilot/
     ├── modelos.py           dataclasses de domínio
     ├── taxas.py              conversões de taxa anual -> mensal
     ├── tabela_price.py       fórmulas da Tabela Price
+    ├── tabela_sac.py         fórmulas do SAC
     ├── simulador.py          laço mensal de simulação
     └── resumos.py            indicadores agregados
 
@@ -47,7 +48,8 @@ frontend/src/
     └── componentes/
         FormularioContrato, AmortizacoesExtras, CartoesResumo,
         GraficoSaldo, GraficoPrestacao, GraficoComposicao,
-        TabelaCronograma, ComparacaoCenarios, TelaLogin, TelaCadastro
+        TabelaCronograma, ComparacaoCenarios, TelaLogin, TelaCadastro,
+        Ajuda, Logo
 ```
 
 Ver [`docs/arquitetura.md`](docs/arquitetura.md), [`docs/banco.md`](docs/banco.md) e [`docs/autenticacao.md`](docs/autenticacao.md) para o detalhamento de cada camada.
@@ -107,7 +109,7 @@ Sobe backend em `http://localhost:8000` e frontend em `http://localhost:5173`.
 
 ## 4. Premissas e fórmulas
 
-### 4.1 Taxa de juros mensal (Tabela Price)
+### 4.1 Taxa de juros mensal
 
 A taxa **nominal** anual do contrato é convertida para taxa mensal por proporcionalidade simples:
 
@@ -137,35 +139,65 @@ PMT = PV × [i × (1+i)^n] / [(1+i)^n - 1]
 
 **Importante:** a prestação financeira é recalculada todo mês com base no saldo já corrigido pela TR e no prazo restante vigente (em vez de fixada uma única vez no início). É essa recorrência que faz a prestação acompanhar a evolução da TR ao longo do contrato — como ocorre na prática em financiamentos SFH indexados à TR — e, como consequência natural, quando resta exatamente 1 mês de prazo a própria fórmula devolve o valor exato para zerar o saldo (saldo corrigido + juros), resolvendo o ajuste da última parcela sem necessidade de um caso especial no código.
 
-### 4.4 Amortização extraordinária — redução de prazo
+### 4.4 SAC (Sistema de Amortização Constante)
 
-No mês do evento: mantém-se a prestação financeira já calculada naquele mês; aplica-se o valor extra ao saldo (nunca deixando saldo negativo — o valor é limitado ao saldo disponível); o novo prazo é recalculado isolando `n` na fórmula da Tabela Price:
+Alternativa à Tabela Price, escolhida no campo `sistema_amortizacao` do contrato (`"price"`, padrão, ou `"sac"`). No SAC a grandeza constante é a **amortização**, não a prestação:
+
+```
+A   = PV / n
+PMT = A + juros
+```
+
+`PV` é o saldo corrigido do mês e `n` o prazo restante. Como a fatia amortizada é sempre a mesma e os juros incidem sobre um saldo que cai mais rápido, a prestação é **decrescente**: começa mais alta que na Price e termina bem mais baixa, com um total de juros significativamente menor.
+
+Comparação para o cenário inicial do projeto (R$ 332.786,77 / 376 meses / 10,02% a.a. nominal / TR 1,5% a.a.):
+
+| | Price | SAC |
+|---|---|---|
+| Prestação financeira no 1º mês | R$ 2.909,87 | R$ 3.668,39 |
+| Prestação financeira no último mês | R$ 4.633,79 | R$ 1.422,95 |
+| Total de juros | R$ 923.335,64 | R$ 616.229,62 |
+
+Note o efeito colateral que o simulador expõe na Price indexada à TR: no início a amortização (R$ 127,65 no 1º mês) é menor que a correção monetária, então o **saldo devedor cresce** nos primeiros anos. No SAC isso não acontece — a amortização de R$ 886,17 já supera a correção desde o 1º mês.
+
+Como na Price, a fórmula é reaplicada a cada mês sobre o saldo corrigido e o prazo restante vigentes; quando resta 1 mês, `A = PV / 1` zera o saldo exatamente, dispensando um caso especial para a última parcela.
+
+### 4.5 Amortização extraordinária — redução de prazo
+
+No mês do evento: aplica-se o valor extra ao saldo (nunca deixando saldo negativo — o valor é limitado ao saldo disponível) e recalcula-se o prazo preservando a grandeza característica do sistema. Na **Price**, mantém-se a prestação financeira já calculada naquele mês e isola-se `n` na fórmula:
 
 ```
 n = -ln(1 - i × saldo_novo / prestacao) / ln(1 + i)
 ```
 
-arredondado para cima (número inteiro de meses). Quando `i = 0`, `n = saldo_novo / prestacao`. Se o saldo zerar, a simulação encerra naquele mês.
+arredondado para cima (número inteiro de meses). Quando `i = 0`, `n = saldo_novo / prestacao`.
 
-### 4.5 Amortização extraordinária — redução de prestação
+No **SAC**, mantém-se a amortização mensal daquele mês e a relação é sempre linear:
 
-Mantém-se o prazo restante; reduz-se o saldo; a prestação financeira do mês seguinte é automaticamente recalculada pela fórmula Price com o novo saldo e o mesmo prazo.
+```
+n = saldo_novo / amortizacao
+```
 
-### 4.6 Sequência mensal de cálculo
+Em ambos os casos o efeito é o mesmo: a parcela segue no patamar em que estava e a quitação é antecipada. Se o saldo zerar, a simulação encerra naquele mês.
+
+### 4.6 Amortização extraordinária — redução de prestação
+
+Mantém-se o prazo restante; reduz-se o saldo; a prestação financeira do mês seguinte é automaticamente recalculada pelo sistema do contrato com o novo saldo e o mesmo prazo.
+
+### 4.7 Sequência mensal de cálculo
 
 1. Saldo inicial do mês.
 2. Correção monetária pela TR.
 3. Saldo corrigido.
 4. Juros sobre o saldo corrigido.
-5. Prestação financeira (Tabela Price, saldo corrigido e prazo restante vigentes).
-6. Amortização ordinária = prestação financeira − juros.
+5. Prestação financeira e amortização ordinária pelo sistema do contrato (saldo corrigido e prazo restante vigentes): na Price calcula-se a prestação e a amortização é o resíduo; no SAC calcula-se a amortização e a prestação é a soma com os juros.
 7. Aplicação da amortização ordinária.
 8. Aplicação de eventual amortização extraordinária do mês.
 9. Recálculo do prazo ou da prestação, conforme a estratégia.
 10. Soma de seguros e tarifas para obter a prestação total.
 11. Registro do saldo final.
 
-### 4.7 Arredondamento
+### 4.8 Arredondamento
 
 Todos os valores monetários são arredondados para centavos (`ROUND_HALF_UP`) a cada etapa, usando `Decimal` em todo o motor financeiro — nunca `float`.
 
@@ -181,19 +213,39 @@ Esta é uma **convenção simplificada**, não uma reprodução do extrato ofici
 - o número de meses recalculado após uma amortização com redução de prazo assume taxa de juros constante e desconhece futuras correções de TR; a cada mês o prazo e a prestação são recalculados novamente com o saldo efetivamente atualizado.
 - as regras de datas e periodicidade do FGTS são tratadas apenas como parâmetros configuráveis pelo usuário, não como regras legais permanentes.
 
-## 6. Como cadastrar amortizações extraordinárias
+## 6. Entendendo os campos na tela
 
-Na seção "Amortizações extraordinárias (FGTS)" do formulário: **Adicionar amortização** cria um novo evento (data e valor editáveis); cada evento tem um seletor de estratégia (**Redução do prazo** ou **Redução da prestação**); o botão **✕** remove um evento. O cenário inicial já vem com os cinco aportes de R$ 40.000,00 (junho de 2027, 2029, 2031, 2033 e 2035), todos com redução de prazo.
+Todo campo do formulário e todo indicador do resumo têm um botão discreto **?** alinhado à direita do rótulo. Clicar abre um balão explicando o que o campo significa, em que unidade preencher e se ele afeta ou não o cálculo — por exemplo, que a taxa efetiva serve só de conferência, que o prazo original não entra em nenhuma fórmula, e que os limites financeiros apenas disparam alertas.
 
-## 7. Como comparar cenários
+Por isso os rótulos são curtos e trazem apenas a unidade (`(R$)`, `(meses)`, `(fração)`): os exemplos de preenchimento ficam no balão, não no rótulo, para a linha não acumular parênteses e botão ao mesmo tempo.
+
+O balão abre por clique (não por passar o mouse), para funcionar igual no celular e por teclado. Fecha ao clicar fora, ao apertar `Esc` ou ao abrir a explicação de outro campo.
+
+## 7. Como escolher o sistema de amortização
+
+Na seção "Dados do contrato" do formulário, o campo **Sistema de amortização** alterna entre **Price** (prestação constante, padrão) e **SAC** (amortização constante, prestação decrescente). Na interface os dois aparecem sem o prefixo "Tabela", para que as duas opções fiquem simétricas; nesta documentação "Tabela Price" continua sendo usado como termo formal. O botão **?** do campo explica a opção selecionada no momento. A escolha vale para a simulação e também para a comparação de cenários de TR — para comparar Price contra SAC, simule uma vez em cada sistema. Ver §4.3 e §4.4 para as fórmulas.
+
+## 8. Como cadastrar amortizações extraordinárias
+
+A seção "Amortizações extraordinárias" tem dois blocos, porque são duas coisas diferentes: um compromisso contínuo e eventos avulsos.
+
+**Aporte recorrente** — marque a caixa para ativar e informe valor, periodicidade em meses, mês inicial e até quando (**quitar o financiamento** ou **um mês específico**), mais a estratégia. Serve para o caso mais comum de quem quer antecipar: "R$ 500 a mais todo mês". Um resumo abaixo dos campos mostra quantos aportes e o total, quando há mês final definido; sem mês final o total só é conhecido depois de simular, e a linha diz isso em vez de estimar.
+
+Com periodicidade **24**, o bloco recorrente reproduz exatamente o saque bienal do FGTS — o resultado é idêntico a cadastrar os cinco eventos um a um.
+
+**Aportes pontuais** — para o que não é regular: **Adicionar** cria uma linha (data, valor, estratégia), **✕** remove uma linha e **Limpar todos** esvazia a lista. O cenário inicial já vem com os cinco aportes de R$ 40.000,00 (junho de 2027, 2029, 2031, 2033 e 2035), todos com redução de prazo.
+
+Os dois blocos convivem: num mês em que o recorrente e um pontual coincidem, **os valores somam** (ver [`docs/regras-financeiras.md`](docs/regras-financeiras.md) §4.0).
+
+## 9. Como comparar cenários
 
 Na seção "Comparação de cenários de TR", o botão **Comparar cenários** executa simultaneamente os quatro cenários padrão (TR 0%, 1,5%, 2,0% e 2,5% a.a.) com os mesmos dados de contrato e amortizações, exibindo quitação estimada, maior saldo, maior prestação, juros totais, total de correção pela TR e se os limites foram respeitados em cada cenário.
 
-## 8. Exportação de CSV
+## 10. Exportação de CSV
 
 O botão **Exportar CSV** (na tabela mensal) gera o cronograma completo com separador `;`, decimal com vírgula, codificação UTF-8 com BOM e nomes de colunas em português — pronto para abrir no Excel/LibreOffice sem problemas de acentuação.
 
-## 9. Como executar os testes
+## 11. Como executar os testes
 
 ```bash
 cd backend
@@ -201,15 +253,15 @@ source .venv/bin/activate
 pytest -q
 ```
 
-47 testes cobrindo: cálculo da prestação Price (incluindo um caso com cálculo manual verificável), conversão de taxa anual para mensal (nominal e TR), saldo nunca negativo, amortização extraordinária, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, alertas de saldo e de prestação, comparação de cenários, validações da API e cadastro/login (ver [`docs/autenticacao.md`](docs/autenticacao.md)).
+80 testes cobrindo: cálculo da prestação Price e da amortização do SAC (ambos com um caso de cálculo manual verificável), conversão de taxa anual para mensal (nominal e TR), saldo nunca negativo, amortização extraordinária nos dois sistemas, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, perfil decrescente da prestação no SAC e seu menor custo total de juros, alertas de saldo e de prestação, aporte recorrente (mensal, com fim definido, equivalência com os eventos de FGTS, soma com aportes pontuais na mesma competência), comparação de cenários, validações da API e cadastro/login (ver [`docs/autenticacao.md`](docs/autenticacao.md)).
 
-## 10. Endpoints da API
+## 12. Endpoints da API
 
 - `GET /api/health` → `{"status": "ok"}`
-- `POST /api/simulations` → recebe contrato, cenário de TR e amortizações; devolve cronograma mensal e resumo.
-- `POST /api/simulations/compare` → recebe contrato, amortizações e uma lista de cenários de TR; devolve o resumo de cada cenário.
+- `POST /api/simulations` → recebe contrato, cenário de TR, amortizações pontuais e (opcional) `aporte_recorrente`; devolve cronograma mensal e resumo.
+- `POST /api/simulations/compare` → recebe contrato, amortizações pontuais, (opcional) `aporte_recorrente` e uma lista de cenários de TR; devolve o resumo de cada cenário.
 - `POST /api/auth/cadastro` → cria uma conta (nome, e-mail, senha, telefone opcional, cidade, estado). Retorna 409 se o e-mail já existir.
 - `POST /api/auth/login` → recebe e-mail e senha, devolve `{"token": "...", "tipo": "bearer"}` (JWT). Retorna 401 se as credenciais forem inválidas.
 - `GET /api/auth/eu` → devolve os dados do usuário autenticado (requer `Authorization: Bearer <token>`).
 
-Validações com mensagens em português retornam HTTP 422: saldo inválido, prazo ≤ 0, taxa negativa, amortização negativa, amortização com data anterior à data-base, prestação insuficiente para pagar os juros, valores fora de faixas razoáveis, senha de cadastro menor que 8 caracteres.
+Validações com mensagens em português retornam HTTP 422: saldo inválido, prazo ≤ 0, taxa negativa, amortização negativa, amortização com data anterior à data-base, prestação insuficiente para pagar os juros, valores fora de faixas razoáveis, aporte recorrente com valor ≤ 0 / periodicidade < 1 / mês inicial anterior à data-base / mês final anterior ao inicial, senha de cadastro menor que 8 caracteres.

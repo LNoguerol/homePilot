@@ -1,9 +1,10 @@
 export type Estrategia = "reducao_prazo" | "reducao_prestacao";
+export type SistemaAmortizacao = "price" | "sac";
 
 export interface DadosContrato {
   data_base: string;
   saldo_devedor: string;
-  sistema_amortizacao: "price";
+  sistema_amortizacao: SistemaAmortizacao;
   indexador: "tr";
   taxa_nominal_anual: string;
   taxa_efetiva_informada: string;
@@ -17,6 +18,14 @@ export interface DadosContrato {
 export interface AmortizacaoExtraordinaria {
   data: string;
   valor: string;
+  estrategia: Estrategia;
+}
+
+export interface AporteRecorrente {
+  valor: string;
+  periodicidade_meses: number;
+  mes_inicial: string;
+  mes_final: string | null;
   estrategia: Estrategia;
 }
 
