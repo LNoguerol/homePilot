@@ -1,5 +1,6 @@
 import type {
   AmortizacaoExtraordinaria,
+  AporteRecorrente,
   CenarioTR,
   CompararSaida,
   DadosContrato,
@@ -20,11 +21,17 @@ export async function simular(
   contrato: DadosContrato,
   cenarioTr: CenarioTR,
   amortizacoes: AmortizacaoExtraordinaria[],
+  aporteRecorrente: AporteRecorrente | null,
 ): Promise<SimulacaoSaida> {
   const resposta = await fetch(`${BASE_URL}/simulations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contrato, cenario_tr: cenarioTr, amortizacoes }),
+    body: JSON.stringify({
+      contrato,
+      cenario_tr: cenarioTr,
+      amortizacoes,
+      aporte_recorrente: aporteRecorrente,
+    }),
   });
   return tratarResposta<SimulacaoSaida>(resposta);
 }
@@ -33,11 +40,12 @@ export async function compararCenarios(
   contrato: DadosContrato,
   amortizacoes: AmortizacaoExtraordinaria[],
   cenarios: CenarioTR[],
+  aporteRecorrente: AporteRecorrente | null,
 ): Promise<CompararSaida> {
   const resposta = await fetch(`${BASE_URL}/simulations/compare`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contrato, amortizacoes, cenarios }),
+    body: JSON.stringify({ contrato, amortizacoes, cenarios, aporte_recorrente: aporteRecorrente }),
   });
   return tratarResposta<CompararSaida>(resposta);
 }

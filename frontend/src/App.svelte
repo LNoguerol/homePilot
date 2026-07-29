@@ -15,6 +15,7 @@
   import { buscarUsuarioAtual, limparToken, obterToken } from "./lib/autenticacao";
   import type {
     AmortizacaoExtraordinaria,
+    AporteRecorrente,
     DadosContrato,
     ResumoCenario,
     SimulacaoSaida,
@@ -71,6 +72,7 @@
 
   let contrato = contratoInicial();
   let amortizacoes = amortizacoesIniciais();
+  let aporteRecorrente: AporteRecorrente | null = null;
   let cenarioNome = "TR 1,5% a.a.";
   let taxaTrPersonalizada = "0.015";
 
@@ -95,7 +97,12 @@
     erro = null;
     simulando = true;
     try {
-      resultado = await simular(contrato, { nome: cenarioNome, taxa_anual: taxaTrAtual() }, amortizacoes);
+      resultado = await simular(
+        contrato,
+        { nome: cenarioNome, taxa_anual: taxaTrAtual() },
+        amortizacoes,
+        aporteRecorrente,
+      );
     } catch (e) {
       erro = e instanceof Error ? e.message : "Erro desconhecido na simulação.";
       resultado = null;
@@ -109,7 +116,7 @@
     comparando = true;
     try {
       const cenarios = Object.entries(taxasPorCenario).map(([nome, taxa_anual]) => ({ nome, taxa_anual }));
-      const saida = await compararCenarios(contrato, amortizacoes, cenarios);
+      const saida = await compararCenarios(contrato, amortizacoes, cenarios, aporteRecorrente);
       comparacao = saida.resultados;
     } catch (e) {
       erro = e instanceof Error ? e.message : "Erro desconhecido na comparação.";
@@ -121,6 +128,7 @@
   function restaurar() {
     contrato = contratoInicial();
     amortizacoes = amortizacoesIniciais();
+    aporteRecorrente = null;
     cenarioNome = "TR 1,5% a.a.";
     taxaTrPersonalizada = "0.015";
     resultado = null;
@@ -154,7 +162,7 @@
   <main>
     <p class="subtitulo">Planejamento inteligente para financiamento imobiliário</p>
     <FormularioContrato bind:contrato bind:cenarioNome bind:taxaTrPersonalizada />
-    <AmortizacoesExtras bind:amortizacoes />
+    <AmortizacoesExtras bind:amortizacoes bind:aporteRecorrente />
 
     <div class="barra-acoes">
       <button class="primario" on:click={aoSimular} disabled={simulando}>

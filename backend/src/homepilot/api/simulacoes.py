@@ -9,6 +9,7 @@ from homepilot.esquemas.simulacao import (
     SimulacaoEntrada,
     SimulacaoSaida,
     amortizacao_para_dominio,
+    aporte_recorrente_para_dominio,
     cenario_para_dominio,
     contrato_para_dominio,
     resultado_para_saida,
@@ -23,8 +24,9 @@ async def criar_simulacao(entrada: SimulacaoEntrada) -> SimulacaoSaida:
     contrato = contrato_para_dominio(entrada.contrato)
     cenario = cenario_para_dominio(entrada.cenario_tr)
     amortizacoes = [amortizacao_para_dominio(a) for a in entrada.amortizacoes]
+    recorrente = aporte_recorrente_para_dominio(entrada.aporte_recorrente)
 
-    resultado = simular(contrato, cenario, amortizacoes)
+    resultado = simular(contrato, cenario, amortizacoes, recorrente)
     return resultado_para_saida(resultado)
 
 
@@ -32,11 +34,12 @@ async def criar_simulacao(entrada: SimulacaoEntrada) -> SimulacaoSaida:
 async def comparar_cenarios(entrada: CompararEntrada) -> CompararSaida:
     contrato = contrato_para_dominio(entrada.contrato)
     amortizacoes = [amortizacao_para_dominio(a) for a in entrada.amortizacoes]
+    recorrente = aporte_recorrente_para_dominio(entrada.aporte_recorrente)
 
     resultados = []
     for cenario_entrada in entrada.cenarios:
         cenario = cenario_para_dominio(cenario_entrada)
-        resultado = simular(contrato, cenario, amortizacoes)
+        resultado = simular(contrato, cenario, amortizacoes, recorrente)
         resultados.append(
             ResumoCenario(
                 cenario=cenario_entrada.nome,

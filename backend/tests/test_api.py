@@ -44,6 +44,77 @@ def test_criar_simulacao_com_cenario_inicial():
     assert corpo_resposta["resumo"]["status_limite_saldo"] in {"Dentro do limite", "Ultrapassado"}
 
 
+def test_criar_simulacao_pelo_sac():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "sistema_amortizacao": "sac"},
+        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "amortizacoes": AMORTIZACOES_FGTS,
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 200
+    parcelas = resposta.json()["parcelas"]
+    # marca característica do SAC: a prestação financeira cai do primeiro ao
+    # último mês, ao contrário da Price indexada à TR
+    assert float(parcelas[-1]["prestacao_financeira"]) < float(parcelas[0]["prestacao_financeira"])
+
+
+def test_sistema_de_amortizacao_desconhecido_retorna_422():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "sistema_amortizacao": "sacre"},
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+
+
+def test_criar_simulacao_com_aporte_recorrente():
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+        "aporte_recorrente": {
+            "valor": "500.00",
+            "periodicidade_meses": 1,
+            "mes_inicial": "2026-08-01",
+            "mes_final": None,
+            "estrategia": "reducao_prazo",
+        },
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 200
+    corpo_resposta = resposta.json()
+    assert len(corpo_resposta["parcelas"]) < 376  # quitou antes do prazo contratado
+    assert float(corpo_resposta["resumo"]["total_amortizado_extraordinario"]) > 0
+
+
+def test_aporte_recorrente_com_periodicidade_zero_retorna_422():
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+        "aporte_recorrente": {
+            "valor": "500.00",
+            "periodicidade_meses": 0,
+            "mes_inicial": "2026-08-01",
+            "estrategia": "reducao_prazo",
+        },
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+
+
+def test_simulacao_sem_aporte_recorrente_continua_valida():
+    """O campo é opcional: omitir deve funcionar como antes da recorrência existir."""
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "amortizacoes": AMORTIZACOES_FGTS,
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 200
+
+
 def test_comparar_cenarios_de_tr():
     corpo = {
         "contrato": CONTRATO_BASE,

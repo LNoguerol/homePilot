@@ -47,22 +47,58 @@ n = -ln(1 - i * saldo / prestacao) / ln(1 + i)
 
 O resultado contínuo é arredondado para cima (`ROUND_CEILING`) para um inteiro de meses no laço principal, com piso de 1 mês (`max(1, ...)`).
 
+## 2-A. SAC — Sistema de Amortização Constante
+
+Selecionável em `contrato.sistema_amortizacao` (`"price"` — padrão — ou `"sac"`). A diferença entre os dois sistemas está inteiramente concentrada em **duas** decisões: como a dupla (prestação, amortização) é calculada no mês, e qual grandeza é preservada na redução de prazo. Todo o resto do laço mensal (correção pela TR, juros, alertas, limites, resumo) é idêntico.
+
+| | Price | SAC |
+|---|---|---|
+| Grandeza calculada | prestação | amortização |
+| Grandeza derivada | amortização = prestação - juros | prestação = amortização + juros |
+| Perfil da prestação | ~constante (cresce com a TR) | decrescente |
+| Perfil da amortização | crescente | ~constante |
+| Total de juros | maior | menor |
+| Preservado na redução de prazo | prestação financeira | amortização mensal |
+
+### 2-A.1 Amortização constante (`tabela_sac.calcular_amortizacao_constante`)
+
+```
+A = PV / n
+```
+
+Não depende da taxa de juros — no SAC os juros entram apenas na composição da prestação. Se `prazo_meses <= 0`: levanta `ValueError` puro (mesma convenção da Price).
+
+Como esta fórmula é reaplicada a cada mês sobre o **saldo corrigido** e o prazo restante vigentes, a amortização é constante *entre eventos*: ela se reajusta quando a TR corrige o saldo (subindo levemente) ou quando uma amortização extraordinária altera saldo/prazo. Com TR = 0% a.a. ela é literalmente constante, a menos de um centavo de resíduo de divisão redistribuído mês a mês.
+
+### 2-A.2 Prazo para quitar (`tabela_sac.calcular_prazo_para_quitar`)
+
+```
+n = PV / A
+```
+
+Sempre linear, pois a amortização não depende dos juros. Se `saldo <= 0`: retorna `0`. Se `amortizacao_constante <= 0`: levanta `ValueError`. Aqui **não existe** o erro de negócio "prestação insuficiente para pagar os juros" que a Price pode produzir (§5.4): no SAC a amortização é paga *além* dos juros, nunca descontada deles.
+
+### 2-A.3 Piso de um centavo
+
+Se o saldo for pequeno demais em relação ao prazo para render um centavo por mês (`A` arredondaria para `0,00`), a amortização é forçada ao piso de `0,01` — limitado ao próprio saldo corrigido. Sem isso, o saldo nunca decresceria e a simulação bateria na trava de segurança de meses (§5.5). Situação inalcançável com valores realistas; é uma garantia de terminação, não uma regra financeira.
+
 ## 3. Laço mensal de simulação (`simulador.simular`)
 
-Ordem exata das operações em cada mês (implementa README §4.6):
+Ordem exata das operações em cada mês (implementa README §4.7):
 
 1. `saldo_inicial` = saldo do mês anterior (ou saldo do contrato, no mês 1).
 2. `correcao_tr = arredondar(saldo_inicial * taxa_mensal_tr)`.
 3. `saldo_corrigido = saldo_inicial + correcao_tr`.
 4. `juros = arredondar(saldo_corrigido * taxa_mensal_juros)`.
-5. `prestacao_financeira = arredondar(calcular_prestacao(saldo_corrigido, taxa_mensal_juros, prazo_restante))` — recalculada todo mês, nunca fixada.
-6. `amortizacao_ordinaria = prestacao_financeira - juros`.
-7. `saldo_apos_ordinaria = saldo_corrigido - amortizacao_ordinaria`.
-8. Se houver amortização extraordinária cadastrada para a competência do mês: `amortizacao_extra = min(valor_evento, saldo_apos_ordinaria)` (nunca deixa o saldo negativo); aplica-se a estratégia (ver seção 4).
-9. Caso contrário: `prazo_restante` decrementa em 1 (piso 0).
-10. `prestacao_total = arredondar(prestacao_financeira + seguros_tarifas_mensais)`.
-11. Registra a `ParcelaMensal` com os alertas (`alerta_saldo = saldo_final > limite_saldo`, `alerta_prestacao = prestacao_total > limite_prestacao`).
-12. Repete enquanto `saldo > 0 and prazo_restante > 0`.
+5. `prestacao_financeira` e `amortizacao_ordinaria` pelo sistema do contrato (`_calcular_prestacao_e_amortizacao`, ver §2 e §2-A) — recalculadas todo mês, nunca fixadas:
+   - **Price**: `prestacao = arredondar(calcular_prestacao(saldo_corrigido, taxa_mensal_juros, prazo_restante))` e `amortizacao = prestacao - juros`.
+   - **SAC**: `amortizacao = arredondar(calcular_amortizacao_constante(saldo_corrigido, prazo_restante))` e `prestacao = arredondar(amortizacao + juros)`.
+6. `saldo_apos_ordinaria = saldo_corrigido - amortizacao_ordinaria`.
+7. Se houver aportes na competência (pontuais e/ou recorrente): `amortizacao_extra = min(soma_dos_aportes, saldo_apos_ordinaria)` (nunca deixa o saldo negativo); aplica-se a estratégia (ver seção 4).
+8. Caso contrário: `prazo_restante` decrementa em 1 (piso 0).
+9. `prestacao_total = arredondar(prestacao_financeira + seguros_tarifas_mensais)`.
+10. Registra a `ParcelaMensal` com os alertas (`alerta_saldo = saldo_final > limite_saldo`, `alerta_prestacao = prestacao_total > limite_prestacao`).
+11. Repete enquanto `saldo > 0 and prazo_restante > 0`.
 
 ### Competência do mês
 
@@ -74,17 +110,46 @@ Todo valor monetário é arredondado a centavos (`ROUND_HALF_UP`) a cada etapa i
 
 ## 4. Amortização extraordinária
 
-Só pode existir **uma** amortização por competência (se houver mais de um evento cadastrado no mesmo mês/ano, apenas o primeiro encontrado na lista ordenada por data é aplicado — cadastrar duas no mesmo mês não soma os efeitos).
+Há duas formas de entrada, que convivem:
+
+- **Aportes pontuais** — lista de `AmortizacaoExtraordinaria` (data, valor, estratégia), um item por evento.
+- **Aporte recorrente** — um único `AporteRecorrente` (valor, periodicidade em meses, mês inicial, mês final opcional, estratégia), expandido pelo motor mês a mês. Existe para expressar em cinco campos o que exigiria centenas de eventos pontuais ("R$ 500 a mais todo mês até quitar"). Nunca é materializado como lista.
+
+### 4.0 Soma dos aportes da competência (`_aportes_da_competencia`)
+
+**Todos os aportes de um mesmo mês somam**: pontuais entre si e com o recorrente.
+
+> Regra anterior, revogada: o motor aplicava apenas o primeiro aporte da competência e descartava os demais. Isso era tolerável quando só existiam eventos pontuais, mas com um aporte recorrente mensal passaria a descartar silenciosamente **todo** aporte pontual do contrato — um aporte de FGTS de R$ 40.000 desapareceria sem aviso. O teste `test_aporte_pontual_e_recorrente_no_mesmo_mes_somam` trava o comportamento novo.
+
+A **estratégia** vigente no mês é a do primeiro aporte pontual (por ser ato mais deliberado que uma recorrência configurada uma única vez); a estratégia do recorrente só vale nos meses sem nenhum aporte pontual. Quando dois pontuais da mesma competência têm estratégias diferentes, vale a do primeiro na lista ordenada por data.
+
+O valor somado é sempre limitado ao saldo disponível (`min(total, saldo_apos_ordinaria)`), então nenhum aporte deixa o saldo negativo.
+
+### 4.0.1 Incidência da recorrência (`_recorrencia_incide_em`)
+
+Um aporte recorrente incide na competência quando, sendo `d` a distância em meses entre a competência e `mes_inicial`:
+
+```
+d >= 0   e   d % periodicidade_meses == 0   e   (mes_final é None ou competência <= mes_final)
+```
+
+Comparações em granularidade de **ano/mês** — o dia de `mes_inicial`/`mes_final` é irrelevante, como já ocorria no casamento dos aportes pontuais. Como a fase é ancorada em `mes_inicial`, uma recorrência anual iniciada em 07/2026 cai nos julhos seguintes mesmo que 07/2026 não chegue a ser simulado.
+
+Validações (`validar_aporte_recorrente`): `valor > 0`, `1 <= periodicidade_meses <= 600`, `mes_inicial` não anterior à competência da data-base, e `mes_final >= mes_inicial` quando informado.
 
 ### 4.1 Redução de prazo
 
-- Mantém a `prestacao_financeira` já calculada naquele mês.
-- Novo prazo: `calcular_prazo_para_quitar(saldo_apos_extra, taxa_mensal_juros, prestacao_financeira)`, arredondado para cima, piso 1 mês.
+Preserva a grandeza característica do sistema e resolve o prazo a partir dela (`_calcular_prazo_apos_reducao`), arredondando para cima com piso de 1 mês:
+
+- **Price**: mantém a `prestacao_financeira` já calculada naquele mês → `tabela_price.calcular_prazo_para_quitar(saldo_apos_extra, taxa_mensal_juros, prestacao_financeira)`.
+- **SAC**: mantém a `amortizacao_ordinaria` daquele mês → `tabela_sac.calcular_prazo_para_quitar(saldo_apos_extra, amortizacao_ordinaria)`.
+
+Em ambos os casos o efeito visível é o mesmo: a parcela segue no mesmo patamar e a quitação é antecipada.
 
 ### 4.2 Redução de prestação
 
 - Mantém o `prazo_restante` (decrementado em 1 neste mês, como o caso sem evento).
-- A prestação do(s) mês(es) seguinte(s) cai naturalmente, pois é recalculada pela Tabela Price com o novo saldo (menor) e o mesmo prazo restante.
+- A prestação do(s) mês(es) seguinte(s) cai naturalmente, pois é recalculada pelo sistema do contrato com o novo saldo (menor) e o mesmo prazo restante — na Price via novo PMT, no SAC via nova amortização (`saldo / prazo`), que arrasta a prestação para baixo junto com os juros do saldo menor.
 
 ### 4.3 Quitação por amortização
 
@@ -119,9 +184,11 @@ Se `saldo_apos_extra <= 0` após o evento: `prazo_restante` é forçado para `1`
 
 ### 5.4 Prestação insuficiente para pagar os juros
 
+**Exclusiva da Price**, onde a amortização é o resíduo da prestação. No SAC a amortização é somada aos juros, então a prestação é suficiente por construção e nenhuma das duas checagens abaixo se aplica.
+
 Checada duas vezes:
 - **No mês 0** (antes do laço), com a prestação inicial: se `prestacao_inicial <= saldo * taxa_mensal_juros`, aborta antes de simular qualquer mês.
-- **Dentro de `calcular_prazo_para_quitar`**, ao recalcular o prazo após uma redução de prazo, se a prestação mantida não bastar para cobrir os juros do novo saldo.
+- **Dentro de `tabela_price.calcular_prazo_para_quitar`**, ao recalcular o prazo após uma redução de prazo, se a prestação mantida não bastar para cobrir os juros do novo saldo.
 
 Na prática, para qualquer `n` finito e `i > 0`, o PMT da Tabela Price é sempre estritamente maior que o juro puro — este erro só é alcançável através de `calcular_prazo_para_quitar` chamado com uma combinação artificial de saldo/prestação/taxa, não através do laço normal de `simular()`.
 
@@ -142,4 +209,4 @@ Calculado a partir do cronograma já pronto (`list[ParcelaMensal]`), sem reproce
 
 ## 7. O que este motor deliberadamente não faz
 
-Ver README §5 para a lista completa de limitações frente a um extrato bancário real (ordem operacional do banco, TR mensal real do BC em vez de cenário anual constante, política real de seguros/tarifas, regras legais de FGTS). Aqui, adicionalmente: o motor não soma TR e juros em uma única taxa composta (ficam sempre em colunas separadas), e não permite mais de uma amortização extraordinária por competência.
+Ver README §5 para a lista completa de limitações frente a um extrato bancário real (ordem operacional do banco, TR mensal real do BC em vez de cenário anual constante, política real de seguros/tarifas, regras legais de FGTS). Aqui, adicionalmente: o motor não soma TR e juros em uma única taxa composta (ficam sempre em colunas separadas), e admite um único aporte recorrente por simulação (aportes com periodicidades diferentes exigem cadastrar os pontuais).

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DadosContrato } from "../tipos";
+  import Ajuda from "./Ajuda.svelte";
 
   export let contrato: DadosContrato;
   export let cenarioNome: string;
@@ -12,26 +13,89 @@
     { nome: "TR 2,5% a.a.", taxa: "0.025" },
     { nome: "Personalizada", taxa: "custom" },
   ];
+
+  const sistemas = [
+    { valor: "price", rotulo: "Price — prestação constante" },
+    { valor: "sac", rotulo: "SAC — amortização constante" },
+  ] as const;
+
+  const explicacaoSistema: Record<string, string> = {
+    price:
+      "Price: a prestação é a grandeza constante e a amortização é o que sobra dela depois de pagar os juros. Começa mais barata, mas amortiza devagar no início e paga mais juros no total. Com TR, o saldo pode até crescer nos primeiros anos.",
+    sac:
+      "SAC: a amortização é a grandeza constante (saldo ÷ prazo) e a prestação é ela mais os juros, por isso a parcela é decrescente. Começa mais caro, mas o saldo cai mais rápido desde o primeiro mês e o total de juros é bem menor.",
+  };
+
+  const textos = {
+    dataBase:
+      "Mês de referência em que a simulação começa — normalmente o mês do extrato que você usou para pegar o saldo. O primeiro mês do cronograma é o mês seguinte a esta data, e o dia informado define o dia de aniversário das parcelas (ajustado automaticamente nos meses mais curtos).",
+    saldoDevedor:
+      "Quanto você ainda deve hoje, conforme o extrato do banco — não o valor original do financiamento. É o ponto de partida de todo o cálculo.",
+    prazoOriginal:
+      "Número total de meses contratado no início do financiamento. Não entra em nenhuma fórmula: serve só de referência para mostrar quantos meses você antecipou.",
+    prazoRestante:
+      "Quantos meses ainda faltam segundo o contrato atual. É este valor — e não o prazo original — que entra no cálculo da prestação e da amortização.",
+    taxaNominal:
+      "Taxa de juros anual do contrato, em fração: digite 0,1002 para 10,02% a.a. É dividida por 12 (proporcionalidade simples) para obter a taxa mensal aplicada em todos os meses.",
+    taxaEfetiva:
+      "Taxa efetiva anual que aparece no contrato, em fração como a nominal: 0,1049 para 10,49% a.a. Serve apenas para conferência — ela deve ficar próxima de (1 + nominal ÷ 12)¹² − 1. Não entra em nenhum cálculo da simulação.",
+    cenarioTr:
+      "A TR corrige o saldo devedor todo mês. Como ninguém sabe a TR futura, você escolhe um cenário anual constante, convertido para taxa mensal por juros compostos. TR e juros nunca são somados numa taxa só: aparecem em colunas separadas na tabela mensal.",
+    trPersonalizada:
+      "TR anual em fração: 0,02 para 2% a.a. Use 0 para simular sem nenhuma correção monetária do saldo.",
+    segurosTarifas:
+      "Valor fixo somado a toda prestação (seguros MIP e DFI, tarifa de administração). Entra na prestação total e no limite de prestação, mas nunca abate o saldo nem rende juros.",
+    limiteSaldo:
+      "Serve só de alerta: se o saldo devedor projetado passar deste valor em algum mês, o mês é destacado na tabela e o resumo aponta “Ultrapassado”. Não altera nenhum cálculo.",
+    limitePrestacao:
+      "Mesmo princípio do limite de saldo, aplicado à prestação total (já com seguros e tarifas). Útil para ver se a parcela caberia no seu orçamento em todos os meses.",
+  };
 </script>
 
 <section class="secao">
   <h3>Dados do contrato</h3>
   <div class="grade">
     <label>
-      Data-base
+      <span class="rotulo-linha">
+        Data-base
+        <Ajuda rotulo="a data-base" texto={textos.dataBase} />
+      </span>
       <input type="date" bind:value={contrato.data_base} />
     </label>
     <label>
-      Saldo devedor (R$)
+      <span class="rotulo-linha">
+        Saldo devedor (R$)
+        <Ajuda rotulo="o saldo devedor" texto={textos.saldoDevedor} />
+      </span>
       <input type="number" step="0.01" bind:value={contrato.saldo_devedor} />
     </label>
     <label>
-      Prazo original (meses)
+      <span class="rotulo-linha">
+        Prazo original (meses)
+        <Ajuda rotulo="o prazo original" texto={textos.prazoOriginal} />
+      </span>
       <input type="number" bind:value={contrato.prazo_original} />
     </label>
     <label>
-      Prazo restante (meses)
+      <span class="rotulo-linha">
+        Prazo restante (meses)
+        <Ajuda rotulo="o prazo restante" texto={textos.prazoRestante} />
+      </span>
       <input type="number" bind:value={contrato.prazo_restante} />
+    </label>
+    <label class="largura-total">
+      <span class="rotulo-linha">
+        Sistema de amortização
+        <Ajuda
+          rotulo="o sistema de amortização"
+          texto={explicacaoSistema[contrato.sistema_amortizacao]}
+        />
+      </span>
+      <select bind:value={contrato.sistema_amortizacao}>
+        {#each sistemas as s}
+          <option value={s.valor}>{s.rotulo}</option>
+        {/each}
+      </select>
     </label>
   </div>
 </section>
@@ -40,15 +104,24 @@
   <h3>Taxas e TR</h3>
   <div class="grade">
     <label>
-      Taxa nominal anual (fração, ex.: 0,1002 = 10,02%)
+      <span class="rotulo-linha">
+        Taxa nominal anual (fração)
+        <Ajuda rotulo="a taxa nominal anual" texto={textos.taxaNominal} />
+      </span>
       <input type="number" step="0.0001" bind:value={contrato.taxa_nominal_anual} />
     </label>
     <label>
-      Taxa efetiva informada (fração, ex.: 0,1049 = 10,49%)
+      <span class="rotulo-linha">
+        Taxa efetiva informada (fração)
+        <Ajuda rotulo="a taxa efetiva informada" texto={textos.taxaEfetiva} />
+      </span>
       <input type="number" step="0.0001" bind:value={contrato.taxa_efetiva_informada} />
     </label>
     <label>
-      Cenário de TR
+      <span class="rotulo-linha">
+        Cenário de TR
+        <Ajuda rotulo="o cenário de TR" texto={textos.cenarioTr} />
+      </span>
       <select bind:value={cenarioNome}>
         {#each cenarios as c}
           <option value={c.nome}>{c.nome}</option>
@@ -57,7 +130,10 @@
     </label>
     {#if cenarioNome === "Personalizada"}
       <label>
-        TR anual personalizada (fração, ex.: 0,02 = 2,0%)
+        <span class="rotulo-linha">
+          TR anual personalizada (fração)
+          <Ajuda rotulo="a TR personalizada" texto={textos.trPersonalizada} />
+        </span>
         <input type="number" step="0.0001" bind:value={taxaTrPersonalizada} />
       </label>
     {/if}
@@ -68,7 +144,10 @@
   <h3>Seguros e tarifas</h3>
   <div class="grade">
     <label>
-      Seguros e tarifas mensais (R$)
+      <span class="rotulo-linha">
+        Seguros e tarifas mensais (R$)
+        <Ajuda rotulo="seguros e tarifas mensais" texto={textos.segurosTarifas} />
+      </span>
       <input type="number" step="0.01" bind:value={contrato.seguros_tarifas_mensais} />
     </label>
   </div>
@@ -78,11 +157,17 @@
   <h3>Limites financeiros</h3>
   <div class="grade">
     <label>
-      Limite máximo do saldo devedor (R$)
+      <span class="rotulo-linha">
+        Limite do saldo devedor (R$)
+        <Ajuda rotulo="o limite de saldo devedor" texto={textos.limiteSaldo} />
+      </span>
       <input type="number" step="0.01" bind:value={contrato.limite_saldo} />
     </label>
     <label>
-      Limite máximo da prestação total (R$)
+      <span class="rotulo-linha">
+        Limite da prestação total (R$)
+        <Ajuda rotulo="o limite de prestação total" texto={textos.limitePrestacao} />
+      </span>
       <input type="number" step="0.01" bind:value={contrato.limite_prestacao} />
     </label>
   </div>
@@ -115,6 +200,14 @@
     font-weight: 500;
     color: var(--cor-texto-secundario);
     gap: 0.35rem;
+  }
+  .rotulo-linha {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .largura-total {
+    grid-column: 1 / -1;
   }
   input,
   select {
