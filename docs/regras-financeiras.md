@@ -94,7 +94,7 @@ Ordem exata das operações em cada mês (implementa README §4.7):
    - **Price**: `prestacao = arredondar(calcular_prestacao(saldo_corrigido, taxa_mensal_juros, prazo_restante))` e `amortizacao = prestacao - juros`.
    - **SAC**: `amortizacao = arredondar(calcular_amortizacao_constante(saldo_corrigido, prazo_restante))` e `prestacao = arredondar(amortizacao + juros)`.
 6. `saldo_apos_ordinaria = saldo_corrigido - amortizacao_ordinaria`.
-7. Se houver aportes na competência (pontuais e/ou recorrente): `amortizacao_extra = min(soma_dos_aportes, saldo_apos_ordinaria)` (nunca deixa o saldo negativo); aplica-se a estratégia (ver seção 4).
+7. Se houver aportes na competência (pontuais e/ou recorrentes): `amortizacao_extra = min(soma_dos_aportes, saldo_apos_ordinaria)` (nunca deixa o saldo negativo); aplica-se a estratégia (ver seção 4).
 8. Caso contrário: `prazo_restante` decrementa em 1 (piso 0).
 9. `prestacao_total = arredondar(prestacao_financeira + seguros_tarifas_mensais)`.
 10. Registra a `ParcelaMensal` com os alertas (`alerta_saldo = saldo_final > limite_saldo`, `alerta_prestacao = prestacao_total > limite_prestacao`).
@@ -113,15 +113,17 @@ Todo valor monetário é arredondado a centavos (`ROUND_HALF_UP`) a cada etapa i
 Há duas formas de entrada, que convivem:
 
 - **Aportes pontuais** — lista de `AmortizacaoExtraordinaria` (data, valor, estratégia), um item por evento.
-- **Aporte recorrente** — um único `AporteRecorrente` (valor, periodicidade em meses, mês inicial, mês final opcional, estratégia), expandido pelo motor mês a mês. Existe para expressar em cinco campos o que exigiria centenas de eventos pontuais ("R$ 500 a mais todo mês até quitar"). Nunca é materializado como lista.
+- **Aportes recorrentes** — lista de `AporteRecorrente` (valor, periodicidade em meses, mês inicial, mês final opcional, estratégia), expandidos pelo motor mês a mês. Existem para expressar em cinco campos o que exigiria centenas de eventos pontuais ("R$ 500 a mais todo mês até quitar"). Nunca são materializados como lista de eventos.
+
+Ser uma **lista** (e não uma recorrência única) é o que permite descrever um esforço que muda de patamar ao longo do contrato — "R$ 500 por mês em 2026, R$ 1.500 por mês em 2027" são duas recorrências com períodos vizinhos. Períodos sobrepostos são permitidos e somam (ver §4.0): um esforço mensal contínuo somado a um reforço anual é uma composição legítima.
 
 ### 4.0 Soma dos aportes da competência (`_aportes_da_competencia`)
 
-**Todos os aportes de um mesmo mês somam**: pontuais entre si e com o recorrente.
+**Todos os aportes de um mesmo mês somam**: pontuais entre si, recorrentes entre si e uns com os outros.
 
 > Regra anterior, revogada: o motor aplicava apenas o primeiro aporte da competência e descartava os demais. Isso era tolerável quando só existiam eventos pontuais, mas com um aporte recorrente mensal passaria a descartar silenciosamente **todo** aporte pontual do contrato — um aporte de FGTS de R$ 40.000 desapareceria sem aviso. O teste `test_aporte_pontual_e_recorrente_no_mesmo_mes_somam` trava o comportamento novo.
 
-A **estratégia** vigente no mês é a do primeiro aporte pontual (por ser ato mais deliberado que uma recorrência configurada uma única vez); a estratégia do recorrente só vale nos meses sem nenhum aporte pontual. Quando dois pontuais da mesma competência têm estratégias diferentes, vale a do primeiro na lista ordenada por data.
+A **estratégia** vigente no mês é a do primeiro aporte pontual (por ser ato mais deliberado que uma recorrência configurada uma única vez). Sem nenhum pontual no mês, vale a da primeira recorrência que incide, na ordem de cadastro — a mesma ordem que o usuário vê na tela. Quando dois pontuais da mesma competência têm estratégias diferentes, vale a do primeiro na lista ordenada por data.
 
 O valor somado é sempre limitado ao saldo disponível (`min(total, saldo_apos_ordinaria)`), então nenhum aporte deixa o saldo negativo.
 
@@ -135,7 +137,7 @@ d >= 0   e   d % periodicidade_meses == 0   e   (mes_final é None ou competênc
 
 Comparações em granularidade de **ano/mês** — o dia de `mes_inicial`/`mes_final` é irrelevante, como já ocorria no casamento dos aportes pontuais. Como a fase é ancorada em `mes_inicial`, uma recorrência anual iniciada em 07/2026 cai nos julhos seguintes mesmo que 07/2026 não chegue a ser simulado.
 
-Validações (`validar_aporte_recorrente`): `valor > 0`, `1 <= periodicidade_meses <= 600`, `mes_inicial` não anterior à competência da data-base, e `mes_final >= mes_inicial` quando informado.
+Validações (`validar_aportes_recorrentes`, aplicadas a cada item da lista): `valor > 0`, `1 <= periodicidade_meses <= 600`, `mes_inicial` não anterior à competência da data-base, e `mes_final >= mes_inicial` quando informado. Com mais de uma recorrência cadastrada, a mensagem de erro numera qual delas está inválida ("o 2º aporte recorrente"), já que é a única forma de o usuário saber qual linha da tela corrigir; com uma só, numerar seria ruído.
 
 ### 4.1 Redução de prazo
 
@@ -209,4 +211,4 @@ Calculado a partir do cronograma já pronto (`list[ParcelaMensal]`), sem reproce
 
 ## 7. O que este motor deliberadamente não faz
 
-Ver README §5 para a lista completa de limitações frente a um extrato bancário real (ordem operacional do banco, TR mensal real do BC em vez de cenário anual constante, política real de seguros/tarifas, regras legais de FGTS). Aqui, adicionalmente: o motor não soma TR e juros em uma única taxa composta (ficam sempre em colunas separadas), e admite um único aporte recorrente por simulação (aportes com periodicidades diferentes exigem cadastrar os pontuais).
+Ver README §5 para a lista completa de limitações frente a um extrato bancário real (ordem operacional do banco, TR mensal real do BC em vez de cenário anual constante, política real de seguros/tarifas, regras legais de FGTS). Aqui, adicionalmente: o motor não soma TR e juros em uma única taxa composta (ficam sempre em colunas separadas), e a recorrência é sempre de valor fixo — um aporte que cresce a cada ano (por reajuste salarial, por exemplo) tem de ser cadastrado como uma recorrência por patamar.

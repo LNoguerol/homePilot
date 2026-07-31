@@ -65,7 +65,7 @@ frontend/src/
     ├── csv.ts                  exportação de cronograma para CSV (client-side)
     └── componentes/
         FormularioContrato.svelte    dados do contrato
-        AmortizacoesExtras.svelte     lista editável de aportes extraordinários
+        AmortizacoesExtras.svelte     listas editáveis de aportes recorrentes e pontuais
         CartoesResumo.svelte          indicadores agregados
         GraficoSaldo.svelte           evolução do saldo devedor
         GraficoPrestacao.svelte       evolução da prestação

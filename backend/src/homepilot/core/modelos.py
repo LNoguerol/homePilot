@@ -68,6 +68,12 @@ class AporteRecorrente:
 
     `mes_inicial` e `mes_final` são tratados com granularidade de **competência**
     (ano e mês); o dia é ignorado. `mes_final=None` significa "até quitar".
+
+    A simulação aceita **várias** recorrências ao mesmo tempo, o que permite
+    descrever um esforço que muda de patamar ao longo do contrato ("R$ 500 por
+    mês em 2026, R$ 1.500 por mês em 2027"). Nada impede que duas se sobreponham
+    numa mesma competência: nesse mês os valores somam, como já ocorre entre
+    pontuais.
     """
 
     valor: Decimal

@@ -21,7 +21,7 @@ export async function simular(
   contrato: DadosContrato,
   cenarioTr: CenarioTR,
   amortizacoes: AmortizacaoExtraordinaria[],
-  aporteRecorrente: AporteRecorrente | null,
+  aportesRecorrentes: AporteRecorrente[],
 ): Promise<SimulacaoSaida> {
   const resposta = await fetch(`${BASE_URL}/simulations`, {
     method: "POST",
@@ -30,7 +30,7 @@ export async function simular(
       contrato,
       cenario_tr: cenarioTr,
       amortizacoes,
-      aporte_recorrente: aporteRecorrente,
+      aportes_recorrentes: aportesRecorrentes,
     }),
   });
   return tratarResposta<SimulacaoSaida>(resposta);
@@ -40,12 +40,12 @@ export async function compararCenarios(
   contrato: DadosContrato,
   amortizacoes: AmortizacaoExtraordinaria[],
   cenarios: CenarioTR[],
-  aporteRecorrente: AporteRecorrente | null,
+  aportesRecorrentes: AporteRecorrente[],
 ): Promise<CompararSaida> {
   const resposta = await fetch(`${BASE_URL}/simulations/compare`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contrato, amortizacoes, cenarios, aporte_recorrente: aporteRecorrente }),
+    body: JSON.stringify({ contrato, amortizacoes, cenarios, aportes_recorrentes: aportesRecorrentes }),
   });
   return tratarResposta<CompararSaida>(resposta);
 }

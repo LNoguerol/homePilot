@@ -6,11 +6,11 @@ Status das etapas do HomePilot. Não é um cronograma com datas — apenas o que
 
 - Motor financeiro (Tabela Price, TR, amortização extraordinária por redução de prazo/prestação, alertas de limite) — `backend/src/homepilot/core/`.
 - **SAC (Sistema de Amortização Constante)** como alternativa à Tabela Price, selecionável em `contrato.sistema_amortizacao` (`"price"` | `"sac"`) e no formulário do frontend. Regras em [`regras-financeiras.md`](regras-financeiras.md) §2-A.
-- **Aporte recorrente** (`aporte_recorrente`: valor, periodicidade, mês inicial/final, estratégia), expandido pelo motor mês a mês — expressa "R$ 500 todo mês até quitar" sem cadastrar centenas de eventos. Na mesma mudança, aportes da mesma competência passaram a **somar** em vez de aplicar só o primeiro. Regras em [`regras-financeiras.md`](regras-financeiras.md) §4.
+- **Aportes recorrentes** (`aportes_recorrentes`, lista de: valor, periodicidade, mês inicial/final, estratégia), expandidos pelo motor mês a mês — expressam "R$ 500 todo mês até quitar" sem cadastrar centenas de eventos, e, sendo lista, também "R$ 500 por mês em 2026 e R$ 1.500 por mês em 2027". Na mesma linha de mudança, aportes da mesma competência passaram a **somar** em vez de aplicar só o primeiro. Regras em [`regras-financeiras.md`](regras-financeiras.md) §4.
 - API FastAPI (`/api/simulations`, `/api/simulations/compare`, `/api/health`), com validação e tratamento de erros de negócio em HTTP 422.
 - Frontend Svelte + TS + Vite + Chart.js: formulário de contrato, amortizações extras, resumo, três gráficos, tabela de cronograma, exportação CSV, comparação de cenários.
 - Docker Compose para backend + frontend.
-- 80 testes automatizados do backend (pytest) — 71 do motor financeiro e da API + 9 de cadastro/login (rodam com SQLite local, sem exigir MariaDB).
+- 88 testes automatizados do backend (pytest) — 79 do motor financeiro e da API + 9 de cadastro/login (rodam com SQLite local, sem exigir MariaDB).
 - **Banco de dados (MariaDB)** — tabela `usuarios` (nome, e-mail, senha, telefone opcional, cidade, estado), conexão via SQLAlchemy, migration inicial via Alembic. Desenho em [`banco.md`](banco.md).
 - **Autenticação** — cadastro (`POST /api/auth/cadastro`), login com JWT (`POST /api/auth/login`), rota protegida (`GET /api/auth/eu`), telas de login/cadastro no frontend com sessão via `localStorage`. Desenho em [`autenticacao.md`](autenticacao.md). As rotas de simulação continuam públicas (decisão registrada no documento).
 - Documentação: `README.md`, [`arquitetura.md`](arquitetura.md), [`regras-financeiras.md`](regras-financeiras.md), [`padroes-desenvolvimento.md`](padroes-desenvolvimento.md).

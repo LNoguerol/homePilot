@@ -227,15 +227,17 @@ Na seção "Dados do contrato" do formulário, o campo **Sistema de amortizaçã
 
 ## 8. Como cadastrar amortizações extraordinárias
 
-A seção "Amortizações extraordinárias" tem dois blocos, porque são duas coisas diferentes: um compromisso contínuo e eventos avulsos.
+A seção "Amortizações extraordinárias" tem dois blocos, porque são duas coisas diferentes: compromissos contínuos e eventos avulsos.
 
-**Aporte recorrente** — marque a caixa para ativar e informe valor, periodicidade em meses, mês inicial e até quando (**quitar o financiamento** ou **um mês específico**), mais a estratégia. Serve para o caso mais comum de quem quer antecipar: "R$ 500 a mais todo mês". Um resumo abaixo dos campos mostra quantos aportes e o total, quando há mês final definido; sem mês final o total só é conhecido depois de simular, e a linha diz isso em vez de estimar.
+**Aportes recorrentes** — **Adicionar** cria um bloco com valor, periodicidade em meses, mês inicial, até quando (**quitar o financiamento** ou **um mês específico**) e estratégia. Serve para o caso mais comum de quem quer antecipar: "R$ 500 a mais todo mês". Um resumo abaixo dos campos mostra quantos aportes e o total, quando há mês final definido; sem mês final o total só é conhecido depois de simular, e a linha diz isso em vez de estimar.
 
-Com periodicidade **24**, o bloco recorrente reproduz exatamente o saque bienal do FGTS — o resultado é idêntico a cadastrar os cinco eventos um a um.
+Podem ser cadastrados **vários**, o que permite descrever um esforço que muda de patamar: R$ 500 por mês durante 2026 e R$ 1.500 por mês durante 2027 são duas recorrências com períodos vizinhos. Ao adicionar uma nova, o mês inicial já vem sugerido logo após o fim da anterior, que é o encadeamento mais provável. Sobreposição é permitida — um aporte mensal de R$ 500 mais um reforço anual de R$ 3.000 fazem o mês do reforço receber R$ 3.500.
+
+Com periodicidade **24**, uma recorrência reproduz exatamente o saque bienal do FGTS — o resultado é idêntico a cadastrar os cinco eventos um a um.
 
 **Aportes pontuais** — para o que não é regular: **Adicionar** cria uma linha (data, valor, estratégia), **✕** remove uma linha e **Limpar todos** esvazia a lista. O cenário inicial já vem com os cinco aportes de R$ 40.000,00 (junho de 2027, 2029, 2031, 2033 e 2035), todos com redução de prazo.
 
-Os dois blocos convivem: num mês em que o recorrente e um pontual coincidem, **os valores somam** (ver [`docs/regras-financeiras.md`](docs/regras-financeiras.md) §4.0).
+Os dois blocos convivem: num mês em que mais de um aporte incide — recorrentes entre si ou com um pontual —, **os valores somam** (ver [`docs/regras-financeiras.md`](docs/regras-financeiras.md) §4.0).
 
 ## 9. Como comparar cenários
 
@@ -253,15 +255,15 @@ source .venv/bin/activate
 pytest -q
 ```
 
-80 testes cobrindo: cálculo da prestação Price e da amortização do SAC (ambos com um caso de cálculo manual verificável), conversão de taxa anual para mensal (nominal e TR), saldo nunca negativo, amortização extraordinária nos dois sistemas, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, perfil decrescente da prestação no SAC e seu menor custo total de juros, alertas de saldo e de prestação, aporte recorrente (mensal, com fim definido, equivalência com os eventos de FGTS, soma com aportes pontuais na mesma competência), comparação de cenários, validações da API e cadastro/login (ver [`docs/autenticacao.md`](docs/autenticacao.md)).
+88 testes cobrindo: cálculo da prestação Price e da amortização do SAC (ambos com um caso de cálculo manual verificável), conversão de taxa anual para mensal (nominal e TR), saldo nunca negativo, amortização extraordinária nos dois sistemas, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, perfil decrescente da prestação no SAC e seu menor custo total de juros, alertas de saldo e de prestação, aportes recorrentes (mensal, com fim definido, equivalência com os eventos de FGTS, vários em períodos distintos, vários sobrepostos, soma com aportes pontuais na mesma competência), comparação de cenários, validações da API e cadastro/login (ver [`docs/autenticacao.md`](docs/autenticacao.md)).
 
 ## 12. Endpoints da API
 
 - `GET /api/health` → `{"status": "ok"}`
-- `POST /api/simulations` → recebe contrato, cenário de TR, amortizações pontuais e (opcional) `aporte_recorrente`; devolve cronograma mensal e resumo.
-- `POST /api/simulations/compare` → recebe contrato, amortizações pontuais, (opcional) `aporte_recorrente` e uma lista de cenários de TR; devolve o resumo de cada cenário.
+- `POST /api/simulations` → recebe contrato, cenário de TR, amortizações pontuais e (opcional) `aportes_recorrentes`; devolve cronograma mensal e resumo.
+- `POST /api/simulations/compare` → recebe contrato, amortizações pontuais, (opcional) `aportes_recorrentes` e uma lista de cenários de TR; devolve o resumo de cada cenário.
 - `POST /api/auth/cadastro` → cria uma conta (nome, e-mail, senha, telefone opcional, cidade, estado). Retorna 409 se o e-mail já existir.
 - `POST /api/auth/login` → recebe e-mail e senha, devolve `{"token": "...", "tipo": "bearer"}` (JWT). Retorna 401 se as credenciais forem inválidas.
 - `GET /api/auth/eu` → devolve os dados do usuário autenticado (requer `Authorization: Bearer <token>`).
 
-Validações com mensagens em português retornam HTTP 422: saldo inválido, prazo ≤ 0, taxa negativa, amortização negativa, amortização com data anterior à data-base, prestação insuficiente para pagar os juros, valores fora de faixas razoáveis, aporte recorrente com valor ≤ 0 / periodicidade < 1 / mês inicial anterior à data-base / mês final anterior ao inicial, senha de cadastro menor que 8 caracteres.
+Validações com mensagens em português retornam HTTP 422: saldo inválido, prazo ≤ 0, taxa negativa, amortização negativa, amortização com data anterior à data-base, prestação insuficiente para pagar os juros, valores fora de faixas razoáveis, aporte recorrente com valor ≤ 0 / periodicidade < 1 / mês inicial anterior à data-base / mês final anterior ao inicial (a mensagem numera qual das recorrências corrigir quando há mais de uma), senha de cadastro menor que 8 caracteres.

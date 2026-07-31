@@ -24,9 +24,9 @@ async def criar_simulacao(entrada: SimulacaoEntrada) -> SimulacaoSaida:
     contrato = contrato_para_dominio(entrada.contrato)
     cenario = cenario_para_dominio(entrada.cenario_tr)
     amortizacoes = [amortizacao_para_dominio(a) for a in entrada.amortizacoes]
-    recorrente = aporte_recorrente_para_dominio(entrada.aporte_recorrente)
+    recorrentes = [aporte_recorrente_para_dominio(r) for r in entrada.aportes_recorrentes]
 
-    resultado = simular(contrato, cenario, amortizacoes, recorrente)
+    resultado = simular(contrato, cenario, amortizacoes, recorrentes)
     return resultado_para_saida(resultado)
 
 
@@ -34,12 +34,12 @@ async def criar_simulacao(entrada: SimulacaoEntrada) -> SimulacaoSaida:
 async def comparar_cenarios(entrada: CompararEntrada) -> CompararSaida:
     contrato = contrato_para_dominio(entrada.contrato)
     amortizacoes = [amortizacao_para_dominio(a) for a in entrada.amortizacoes]
-    recorrente = aporte_recorrente_para_dominio(entrada.aporte_recorrente)
+    recorrentes = [aporte_recorrente_para_dominio(r) for r in entrada.aportes_recorrentes]
 
     resultados = []
     for cenario_entrada in entrada.cenarios:
         cenario = cenario_para_dominio(cenario_entrada)
-        resultado = simular(contrato, cenario, amortizacoes, recorrente)
+        resultado = simular(contrato, cenario, amortizacoes, recorrentes)
         resultados.append(
             ResumoCenario(
                 cenario=cenario_entrada.nome,
