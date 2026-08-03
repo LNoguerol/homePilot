@@ -14,3 +14,6 @@ frontend/dist/
 outputs/*.csv
 .DS_Store
 *.log
+
+## Deploy
+.env

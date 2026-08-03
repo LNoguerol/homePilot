@@ -4,11 +4,11 @@
   import { formatarMoeda } from "../moeda";
 
   export let amortizacoes: AmortizacaoExtraordinaria[];
-  export let aporteRecorrente: AporteRecorrente | null;
+  export let aportesRecorrentes: AporteRecorrente[];
 
   const textos = {
     recorrente:
-      "Um aporte que se repete, para não precisar cadastrar centenas de linhas. “R$ 500 a cada 1 mês até quitar” é o caso mais comum: pagar um pouco além da prestação todo mês. Com periodicidade 24, expressa o saque bienal do FGTS.",
+      "Aportes que se repetem, para não precisar cadastrar centenas de linhas. “R$ 500 a cada 1 mês até quitar” é o caso mais comum: pagar um pouco além da prestação todo mês. Com periodicidade 24, expressa o saque bienal do FGTS. Pode cadastrar vários para mudar de patamar ao longo do tempo — R$ 500 por mês em 2026 e R$ 1.500 por mês em 2027, por exemplo. Se dois se sobrepuserem num mês, os valores somam.",
     periodicidade:
       "De quantos em quantos meses o aporte se repete. 1 = todo mês; 12 = uma vez por ano; 24 = a cada dois anos. A contagem é ancorada no mês inicial.",
     mesInicial:
@@ -16,7 +16,7 @@
     ate:
       "“Quitar o financiamento” repete o aporte enquanto houver saldo — é o que você quer se pretende manter o esforço até o fim. “Um mês específico” encerra a recorrência numa competência escolhida.",
     pontuais:
-      "Aportes avulsos, para o que não é regular: FGTS, 13º, bônus, venda de um bem. Se um pontual cair no mesmo mês do recorrente, os dois valores somam.",
+      "Aportes avulsos, para o que não é regular: FGTS, 13º, bônus, venda de um bem. Se um pontual cair no mesmo mês de um recorrente, os valores somam.",
     data:
       "Mês em que o aporte entra. Só o mês e o ano importam — o dia é ignorado na hora de casar o aporte com o cronograma. Não pode ser anterior à data-base do contrato.",
     valor:
@@ -30,24 +30,43 @@
   const paraMes = (data: string | null) => (data ? data.slice(0, 7) : "");
   const paraData = (mes: string) => (mes ? `${mes}-01` : "");
 
-  function recorrentePadrao(): AporteRecorrente {
-    return {
-      valor: "500.00",
-      periodicidade_meses: 1,
-      mes_inicial: paraData(new Date().toISOString().slice(0, 7)),
-      mes_final: null,
-      estrategia: "reducao_prazo",
-    };
+  const mesSeguinte = (mes: string) => {
+    const [ano, numero] = mes.split("-").map(Number);
+    return numero === 12
+      ? `${ano + 1}-01`
+      : `${ano}-${String(numero + 1).padStart(2, "0")}`;
+  };
+
+  /** Mês inicial sugerido ao adicionar uma recorrência: logo após o fim da
+   * última cadastrada, que é o encadeamento mais provável ("R$ 500 em 2026,
+   * R$ 1.500 em 2027"). Se a última não tem fim, não há continuação óbvia. */
+  function proximoInicioSugerido(): string {
+    const ultima = aportesRecorrentes[aportesRecorrentes.length - 1];
+    if (ultima?.mes_final) return mesSeguinte(paraMes(ultima.mes_final));
+    return new Date().toISOString().slice(0, 7);
   }
 
-  function alternarRecorrente(ativo: boolean) {
-    aporteRecorrente = ativo ? recorrentePadrao() : null;
+  function adicionarRecorrente() {
+    aportesRecorrentes = [
+      ...aportesRecorrentes,
+      {
+        valor: "500.00",
+        periodicidade_meses: 1,
+        mes_inicial: paraData(proximoInicioSugerido()),
+        mes_final: null,
+        estrategia: "reducao_prazo",
+      },
+    ];
   }
 
-  function alternarFim(modo: string) {
-    if (!aporteRecorrente) return;
-    aporteRecorrente.mes_final =
-      modo === "quitar" ? null : paraData(paraMes(aporteRecorrente.mes_inicial));
+  function removerRecorrente(indice: number) {
+    aportesRecorrentes = aportesRecorrentes.filter((_, i) => i !== indice);
+  }
+
+  function alternarFim(indice: number, modo: string) {
+    const recorrente = aportesRecorrentes[indice];
+    recorrente.mes_final = modo === "quitar" ? null : paraData(paraMes(recorrente.mes_inicial));
+    aportesRecorrentes = aportesRecorrentes;
   }
 
   /** Quantas competências a recorrência abrange, quando ela tem fim definido.
@@ -62,10 +81,6 @@
     if (meses < 0) return null;
     return Math.floor(meses / Math.max(1, r.periodicidade_meses)) + 1;
   }
-
-  $: quantidade = aporteRecorrente ? contarAportes(aporteRecorrente) : null;
-  $: totalPrevisto =
-    aporteRecorrente && quantidade !== null ? quantidade * Number(aporteRecorrente.valor) : null;
 
   function adicionar() {
     amortizacoes = [...amortizacoes, { data: "2027-06-17", valor: "40000.00", estrategia: "reducao_prazo" }];
@@ -83,99 +98,114 @@
 <section class="secao">
   <h3>Amortizações extraordinárias</h3>
 
-  <div class="recorrente" class:ativo={aporteRecorrente !== null}>
-    <label class="ativar">
-      <input
-        type="checkbox"
-        checked={aporteRecorrente !== null}
-        on:change={(e) => alternarRecorrente(e.currentTarget.checked)}
-      />
-      <span class="titulo-bloco">
-        Aporte recorrente
-        <Ajuda rotulo="o aporte recorrente" texto={textos.recorrente} />
-      </span>
-    </label>
-
-    {#if aporteRecorrente}
-      <div class="grade-recorrente">
-        <label>
-          <span class="rotulo-linha">
-            Valor (R$)
-            <Ajuda rotulo="o valor do aporte recorrente" texto={textos.valor} />
-          </span>
-          <input type="number" step="0.01" bind:value={aporteRecorrente.valor} />
-        </label>
-        <label>
-          <span class="rotulo-linha">
-            A cada (meses)
-            <Ajuda rotulo="a periodicidade" texto={textos.periodicidade} />
-          </span>
-          <input type="number" min="1" bind:value={aporteRecorrente.periodicidade_meses} />
-        </label>
-        <label>
-          <span class="rotulo-linha">
-            A partir de
-            <Ajuda rotulo="o mês inicial" texto={textos.mesInicial} />
-          </span>
-          <input
-            type="month"
-            value={paraMes(aporteRecorrente.mes_inicial)}
-            on:input={(e) =>
-              aporteRecorrente && (aporteRecorrente.mes_inicial = paraData(e.currentTarget.value))}
-          />
-        </label>
-        <label>
-          <span class="rotulo-linha">
-            Até
-            <Ajuda rotulo="o fim da recorrência" texto={textos.ate} />
-          </span>
-          <select
-            value={aporteRecorrente.mes_final ? "data" : "quitar"}
-            on:change={(e) => alternarFim(e.currentTarget.value)}
-          >
-            <option value="quitar">Quitar o financiamento</option>
-            <option value="data">Um mês específico</option>
-          </select>
-        </label>
-        {#if aporteRecorrente.mes_final}
-          <label>
-            <span class="rotulo-linha">Último mês</span>
-            <input
-              type="month"
-              value={paraMes(aporteRecorrente.mes_final)}
-              on:input={(e) =>
-                aporteRecorrente && (aporteRecorrente.mes_final = paraData(e.currentTarget.value))}
-            />
-          </label>
-        {/if}
-        <label>
-          <span class="rotulo-linha">
-            Estratégia
-            <Ajuda rotulo="a estratégia do aporte recorrente" texto={textos.estrategia} />
-          </span>
-          <select bind:value={aporteRecorrente.estrategia}>
-            <option value="reducao_prazo">Redução do prazo</option>
-            <option value="reducao_prestacao">Redução da prestação</option>
-          </select>
-        </label>
-      </div>
-
-      <p class="previsao">
-        {#if totalPrevisto !== null}
-          {quantidade} aportes de {formatarMoeda(aporteRecorrente.valor)} · total {formatarMoeda(
-            totalPrevisto,
-          )}
-        {:else}
-          {formatarMoeda(aporteRecorrente.valor)} a cada {aporteRecorrente.periodicidade_meses === 1
-            ? "mês"
-            : `${aporteRecorrente.periodicidade_meses} meses`}, até quitar — o total aparece no resumo
-          depois de simular.
-        {/if}
-      </p>
-    {/if}
+  <div class="cabecalho-bloco">
+    <span class="titulo-bloco">
+      Aportes recorrentes
+      <Ajuda rotulo="os aportes recorrentes" texto={textos.recorrente} />
+    </span>
+    <div class="acoes">
+      <button class="secundario" on:click={adicionarRecorrente}>Adicionar</button>
+      {#if aportesRecorrentes.length > 0}
+        <button class="secundario" on:click={() => (aportesRecorrentes = [])}>Limpar todos</button>
+      {/if}
+    </div>
   </div>
 
-  <div class="cabecalho-pontuais">
+  {#if aportesRecorrentes.length === 0}
+    <p class="vazio">
+      Nenhum aporte recorrente cadastrado. Use para pagar um valor fixo além da prestação de tempos em
+      tempos.
+    </p>
+  {:else}
+    <div class="lista-recorrentes">
+      {#each aportesRecorrentes as recorrente, indice}
+        {@const quantidade = contarAportes(recorrente)}
+        <div class="recorrente">
+          <div class="grade-recorrente">
+            <label>
+              <span class="rotulo-linha">
+                Valor (R$)
+                <Ajuda rotulo="o valor do aporte recorrente" texto={textos.valor} />
+              </span>
+              <input type="number" step="0.01" bind:value={recorrente.valor} />
+            </label>
+            <label>
+              <span class="rotulo-linha">
+                A cada (meses)
+                <Ajuda rotulo="a periodicidade" texto={textos.periodicidade} />
+              </span>
+              <input type="number" min="1" bind:value={recorrente.periodicidade_meses} />
+            </label>
+            <label>
+              <span class="rotulo-linha">
+                A partir de
+                <Ajuda rotulo="o mês inicial" texto={textos.mesInicial} />
+              </span>
+              <input
+                type="month"
+                value={paraMes(recorrente.mes_inicial)}
+                on:input={(e) => (recorrente.mes_inicial = paraData(e.currentTarget.value))}
+              />
+            </label>
+            <label>
+              <span class="rotulo-linha">
+                Até
+                <Ajuda rotulo="o fim da recorrência" texto={textos.ate} />
+              </span>
+              <select
+                value={recorrente.mes_final ? "data" : "quitar"}
+                on:change={(e) => alternarFim(indice, e.currentTarget.value)}
+              >
+                <option value="quitar">Quitar o financiamento</option>
+                <option value="data">Um mês específico</option>
+              </select>
+            </label>
+            {#if recorrente.mes_final}
+              <label>
+                <span class="rotulo-linha">Último mês</span>
+                <input
+                  type="month"
+                  value={paraMes(recorrente.mes_final)}
+                  on:input={(e) => (recorrente.mes_final = paraData(e.currentTarget.value))}
+                />
+              </label>
+            {/if}
+            <label>
+              <span class="rotulo-linha">
+                Estratégia
+                <Ajuda rotulo="a estratégia do aporte recorrente" texto={textos.estrategia} />
+              </span>
+              <select bind:value={recorrente.estrategia}>
+                <option value="reducao_prazo">Redução do prazo</option>
+                <option value="reducao_prestacao">Redução da prestação</option>
+              </select>
+            </label>
+          </div>
+
+          <p class="previsao">
+            {#if quantidade !== null}
+              {quantidade} aportes de {formatarMoeda(recorrente.valor)} · total {formatarMoeda(
+                quantidade * Number(recorrente.valor),
+              )}
+            {:else}
+              {formatarMoeda(recorrente.valor)} a cada {recorrente.periodicidade_meses === 1
+                ? "mês"
+                : `${recorrente.periodicidade_meses} meses`}, até quitar — o total aparece no resumo
+              depois de simular.
+            {/if}
+          </p>
+
+          <button
+            class="remover remover-recorrente"
+            on:click={() => removerRecorrente(indice)}
+            title="Excluir aporte recorrente">✕</button
+          >
+        </div>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="cabecalho-bloco cabecalho-pontuais">
     <span class="titulo-bloco">
       Aportes pontuais
       <Ajuda rotulo="os aportes pontuais" texto={textos.pontuais} />
@@ -253,35 +283,28 @@
     font-weight: 600;
     color: var(--cor-texto);
   }
-  .recorrente {
-    border: 1px solid var(--cor-borda);
-    border-radius: var(--raio-sm);
-    padding: 0.9rem 1rem;
-    margin-bottom: 1.25rem;
-    transition: background 0.15s ease, border-color 0.15s ease;
-  }
-  .recorrente.ativo {
-    background: var(--cor-destaque-fundo);
-    border-color: var(--cor-destaque);
-  }
-  .ativar {
+  .lista-recorrentes {
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
+    flex-direction: column;
+    gap: 0.7rem;
   }
-  .ativar input {
-    width: 15px;
-    height: 15px;
-    accent-color: var(--cor-destaque);
-    cursor: pointer;
+  .recorrente {
+    position: relative;
+    background: var(--cor-destaque-fundo);
+    border: 1px solid var(--cor-destaque);
+    border-radius: var(--raio-sm);
+    /* folga à direita para o ✕ ancorado no canto não cobrir o primeiro campo */
+    padding: 0.9rem 2.6rem 0.9rem 1rem;
+  }
+  .remover-recorrente {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
   }
   .grade-recorrente {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 0.7rem;
-    margin-top: 0.9rem;
   }
   .previsao {
     margin: 0.85rem 0 0 0;
@@ -290,13 +313,18 @@
     color: var(--cor-destaque);
     font-weight: 500;
   }
-  .cabecalho-pontuais {
+  .cabecalho-bloco {
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 0.8rem;
+  }
+  .cabecalho-pontuais {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--cor-borda);
   }
   .acoes {
     display: flex;

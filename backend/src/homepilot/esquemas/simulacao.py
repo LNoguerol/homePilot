@@ -49,6 +49,8 @@ class AporteRecorrenteEntrada(BaseModel):
 
     Alternativa a cadastrar centenas de `AmortizacaoEntrada` para expressar algo
     como "R$ 500 a mais todo mês". `mes_final=None` significa "até quitar".
+    Podem ser enviadas várias, inclusive com períodos sobrepostos — nos meses em
+    que mais de uma incide, os valores somam.
     """
 
     valor: Decimal
@@ -67,7 +69,7 @@ class SimulacaoEntrada(BaseModel):
     contrato: ContratoEntrada
     cenario_tr: CenarioTREntrada
     amortizacoes: list[AmortizacaoEntrada] = Field(default_factory=list)
-    aporte_recorrente: AporteRecorrenteEntrada | None = None
+    aportes_recorrentes: list[AporteRecorrenteEntrada] = Field(default_factory=list)
 
 
 class ParcelaSaida(BaseModel):
@@ -113,7 +115,7 @@ class SimulacaoSaida(BaseModel):
 class CompararEntrada(BaseModel):
     contrato: ContratoEntrada
     amortizacoes: list[AmortizacaoEntrada] = Field(default_factory=list)
-    aporte_recorrente: AporteRecorrenteEntrada | None = None
+    aportes_recorrentes: list[AporteRecorrenteEntrada] = Field(default_factory=list)
     cenarios: list[CenarioTREntrada]
 
 
@@ -151,11 +153,7 @@ def amortizacao_para_dominio(entrada: AmortizacaoEntrada) -> AmortizacaoExtraord
     )
 
 
-def aporte_recorrente_para_dominio(
-    entrada: AporteRecorrenteEntrada | None,
-) -> AporteRecorrente | None:
-    if entrada is None:
-        return None
+def aporte_recorrente_para_dominio(entrada: AporteRecorrenteEntrada) -> AporteRecorrente:
     return AporteRecorrente(
         valor=entrada.valor,
         periodicidade_meses=entrada.periodicidade_meses,

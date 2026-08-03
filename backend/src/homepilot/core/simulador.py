@@ -100,20 +100,21 @@ def _recorrencia_incide_em(recorrente: AporteRecorrente, competencia: date) -> b
 def _aportes_da_competencia(
     competencia: date,
     pendentes: list[AmortizacaoExtraordinaria],
-    recorrente: AporteRecorrente | None,
+    recorrentes: list[AporteRecorrente],
 ) -> tuple[Decimal, EstrategiaAmortizacao | None]:
     """Soma todos os aportes que caem na competência e devolve
     `(valor_total, estrategia)`.
 
-    Todos os aportes de um mesmo mês **somam**: pontuais entre si e com o
-    recorrente. Antes da recorrência existir, o motor aplicava apenas o primeiro
-    aporte da competência e descartava os demais; com um aporte recorrente
-    mensal essa regra descartaria silenciosamente todo aporte pontual do
-    contrato, o que a tornaria indefensável.
+    Todos os aportes de um mesmo mês **somam**: pontuais entre si, recorrentes
+    entre si e uns com os outros. Antes da recorrência existir, o motor aplicava
+    apenas o primeiro aporte da competência e descartava os demais; com um
+    aporte recorrente mensal essa regra descartaria silenciosamente todo aporte
+    pontual do contrato, o que a tornaria indefensável.
 
     A estratégia vigente é a do primeiro aporte **pontual** do mês, por ser o
-    ato mais deliberado que uma recorrência configurada uma única vez; a do
-    recorrente só vale nos meses sem nenhum aporte pontual.
+    ato mais deliberado que uma recorrência configurada uma única vez; na
+    ausência de pontuais, vale a da primeira recorrência que incide no mês, na
+    ordem em que foram cadastradas.
 
     Consome de `pendentes` os aportes aplicados (a lista é mutada).
     """
@@ -124,7 +125,9 @@ def _aportes_da_competencia(
     total = sum((a.valor for a in do_mes), Decimal("0"))
     estrategia = do_mes[0].estrategia if do_mes else None
 
-    if recorrente is not None and _recorrencia_incide_em(recorrente, competencia):
+    for recorrente in recorrentes:
+        if not _recorrencia_incide_em(recorrente, competencia):
+            continue
         total += recorrente.valor
         if estrategia is None:
             estrategia = recorrente.estrategia
@@ -217,24 +220,32 @@ def validar_amortizacoes(contrato: DadosContrato, amortizacoes: list[Amortizacao
             )
 
 
-def validar_aporte_recorrente(contrato: DadosContrato, recorrente: AporteRecorrente | None) -> None:
-    if recorrente is None:
-        return
-    if recorrente.valor <= 0:
-        raise ErroSimulacaoInvalida("O valor do aporte recorrente deve ser maior que zero.")
-    if recorrente.periodicidade_meses < 1:
-        raise ErroSimulacaoInvalida("A periodicidade do aporte recorrente deve ser de pelo menos 1 mês.")
-    if recorrente.periodicidade_meses > LIMITE_PRAZO_RAZOAVEL:
-        raise ErroSimulacaoInvalida("A periodicidade do aporte recorrente está fora de uma faixa razoável.")
-    inicio = (recorrente.mes_inicial.year, recorrente.mes_inicial.month)
-    if inicio < (contrato.data_base.year, contrato.data_base.month):
-        raise ErroSimulacaoInvalida(
-            "O aporte recorrente começa antes da competência da data-base da simulação."
-        )
-    if recorrente.mes_final is not None:
-        fim = (recorrente.mes_final.year, recorrente.mes_final.month)
-        if fim < inicio:
-            raise ErroSimulacaoInvalida("O mês final do aporte recorrente é anterior ao mês inicial.")
+def _identificar_recorrente(posicao: int, total: int) -> str:
+    """Nomeia a recorrência nas mensagens de erro. Com uma só cadastrada, numerar
+    seria ruído; com várias, o número é a única forma de o usuário saber qual das
+    linhas da tela precisa corrigir."""
+    return "o aporte recorrente" if total == 1 else f"o {posicao}º aporte recorrente"
+
+
+def validar_aportes_recorrentes(contrato: DadosContrato, recorrentes: list[AporteRecorrente]) -> None:
+    total = len(recorrentes)
+    for posicao, recorrente in enumerate(recorrentes, start=1):
+        qual = _identificar_recorrente(posicao, total)
+        if recorrente.valor <= 0:
+            raise ErroSimulacaoInvalida(f"O valor d{qual} deve ser maior que zero.")
+        if recorrente.periodicidade_meses < 1:
+            raise ErroSimulacaoInvalida(f"A periodicidade d{qual} deve ser de pelo menos 1 mês.")
+        if recorrente.periodicidade_meses > LIMITE_PRAZO_RAZOAVEL:
+            raise ErroSimulacaoInvalida(f"A periodicidade d{qual} está fora de uma faixa razoável.")
+        inicio = (recorrente.mes_inicial.year, recorrente.mes_inicial.month)
+        if inicio < (contrato.data_base.year, contrato.data_base.month):
+            raise ErroSimulacaoInvalida(
+                f"O mês inicial d{qual} é anterior à competência da data-base da simulação."
+            )
+        if recorrente.mes_final is not None:
+            fim = (recorrente.mes_final.year, recorrente.mes_final.month)
+            if fim < inicio:
+                raise ErroSimulacaoInvalida(f"O mês final d{qual} é anterior ao seu mês inicial.")
 
 
 def validar_taxa_tr(taxa_anual: Decimal) -> None:
@@ -248,20 +259,21 @@ def simular(
     contrato: DadosContrato,
     cenario_tr: CenarioTR,
     amortizacoes: list[AmortizacaoExtraordinaria] | None = None,
-    aporte_recorrente: AporteRecorrente | None = None,
+    aportes_recorrentes: list[AporteRecorrente] | None = None,
 ) -> ResultadoSimulacao:
     """Executa a simulação mensal completa do financiamento e devolve o
     cronograma mês a mês junto com o resumo de indicadores.
 
-    `amortizacoes` são os aportes pontuais; `aporte_recorrente` é o aporte que se
-    repete a cada N meses e é expandido durante o laço. Os dois convivem: num mês
-    em que ambos incidem, os valores somam.
+    `amortizacoes` são os aportes pontuais; `aportes_recorrentes` são os aportes
+    que se repetem a cada N meses e são expandidos durante o laço. Todos
+    convivem: num mês em que mais de um incide, os valores somam.
     """
     amortizacoes_ordenadas = sorted(amortizacoes or [], key=lambda a: a.data)
+    recorrentes = list(aportes_recorrentes or [])
 
     validar_contrato(contrato)
     validar_amortizacoes(contrato, amortizacoes_ordenadas)
-    validar_aporte_recorrente(contrato, aporte_recorrente)
+    validar_aportes_recorrentes(contrato, recorrentes)
     validar_taxa_tr(cenario_tr.taxa_anual)
 
     taxa_mensal_juros = taxa_nominal_anual_para_mensal(contrato.taxa_nominal_anual)
@@ -310,7 +322,7 @@ def simular(
         estrategia_aplicada: EstrategiaAmortizacao | None = None
 
         valor_aportes, estrategia_do_mes = _aportes_da_competencia(
-            competencia, amortizacoes_pendentes, aporte_recorrente
+            competencia, amortizacoes_pendentes, recorrentes
         )
         # limitado ao saldo disponível: um aporte nunca deixa o saldo negativo
         amortizacao_extra = min(valor_aportes, saldo_apos_ordinaria) if valor_aportes > 0 else Decimal("0")

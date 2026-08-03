@@ -73,13 +73,15 @@ def test_criar_simulacao_com_aporte_recorrente():
         "contrato": CONTRATO_BASE,
         "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
         "amortizacoes": [],
-        "aporte_recorrente": {
-            "valor": "500.00",
-            "periodicidade_meses": 1,
-            "mes_inicial": "2026-08-01",
-            "mes_final": None,
-            "estrategia": "reducao_prazo",
-        },
+        "aportes_recorrentes": [
+            {
+                "valor": "500.00",
+                "periodicidade_meses": 1,
+                "mes_inicial": "2026-08-01",
+                "mes_final": None,
+                "estrategia": "reducao_prazo",
+            }
+        ],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
     assert resposta.status_code == 200
@@ -88,20 +90,67 @@ def test_criar_simulacao_com_aporte_recorrente():
     assert float(corpo_resposta["resumo"]["total_amortizado_extraordinario"]) > 0
 
 
+def test_criar_simulacao_com_varios_aportes_recorrentes():
+    """R$ 500 por mês em 2026 e R$ 1.500 por mês em 2027."""
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+        "aportes_recorrentes": [
+            {
+                "valor": "500.00",
+                "periodicidade_meses": 1,
+                "mes_inicial": "2026-08-01",
+                "mes_final": "2026-12-01",
+                "estrategia": "reducao_prazo",
+            },
+            {
+                "valor": "1500.00",
+                "periodicidade_meses": 1,
+                "mes_inicial": "2027-01-01",
+                "mes_final": "2027-12-01",
+                "estrategia": "reducao_prazo",
+            },
+        ],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 200
+    resumo = resposta.json()["resumo"]
+    # 5 meses de R$ 500 + 12 meses de R$ 1.500
+    assert float(resumo["total_amortizado_extraordinario"]) == 20500.0
+
+
 def test_aporte_recorrente_com_periodicidade_zero_retorna_422():
     corpo = {
         "contrato": CONTRATO_BASE,
         "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
-        "aporte_recorrente": {
-            "valor": "500.00",
-            "periodicidade_meses": 0,
-            "mes_inicial": "2026-08-01",
-            "estrategia": "reducao_prazo",
-        },
+        "aportes_recorrentes": [
+            {
+                "valor": "500.00",
+                "periodicidade_meses": 0,
+                "mes_inicial": "2026-08-01",
+                "estrategia": "reducao_prazo",
+            }
+        ],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
     assert resposta.status_code == 422
+
+
+def test_erro_de_recorrente_invalido_diz_qual_deles_corrigir():
+    corpo = {
+        "contrato": CONTRATO_BASE,
+        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "amortizacoes": [],
+        "aportes_recorrentes": [
+            {"valor": "500.00", "periodicidade_meses": 1, "mes_inicial": "2026-08-01"},
+            {"valor": "0", "periodicidade_meses": 1, "mes_inicial": "2026-08-01"},
+        ],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+    assert "2º aporte recorrente" in resposta.json()["detail"]
 
 
 def test_simulacao_sem_aporte_recorrente_continua_valida():

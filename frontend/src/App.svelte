@@ -72,7 +72,7 @@
 
   let contrato = contratoInicial();
   let amortizacoes = amortizacoesIniciais();
-  let aporteRecorrente: AporteRecorrente | null = null;
+  let aportesRecorrentes: AporteRecorrente[] = [];
   let cenarioNome = "TR 1,5% a.a.";
   let taxaTrPersonalizada = "0.015";
 
@@ -101,7 +101,7 @@
         contrato,
         { nome: cenarioNome, taxa_anual: taxaTrAtual() },
         amortizacoes,
-        aporteRecorrente,
+        aportesRecorrentes,
       );
     } catch (e) {
       erro = e instanceof Error ? e.message : "Erro desconhecido na simulação.";
@@ -116,7 +116,7 @@
     comparando = true;
     try {
       const cenarios = Object.entries(taxasPorCenario).map(([nome, taxa_anual]) => ({ nome, taxa_anual }));
-      const saida = await compararCenarios(contrato, amortizacoes, cenarios, aporteRecorrente);
+      const saida = await compararCenarios(contrato, amortizacoes, cenarios, aportesRecorrentes);
       comparacao = saida.resultados;
     } catch (e) {
       erro = e instanceof Error ? e.message : "Erro desconhecido na comparação.";
@@ -128,7 +128,7 @@
   function restaurar() {
     contrato = contratoInicial();
     amortizacoes = amortizacoesIniciais();
-    aporteRecorrente = null;
+    aportesRecorrentes = [];
     cenarioNome = "TR 1,5% a.a.";
     taxaTrPersonalizada = "0.015";
     resultado = null;
@@ -162,7 +162,7 @@
   <main>
     <p class="subtitulo">Planejamento inteligente para financiamento imobiliário</p>
     <FormularioContrato bind:contrato bind:cenarioNome bind:taxaTrPersonalizada />
-    <AmortizacoesExtras bind:amortizacoes bind:aporteRecorrente />
+    <AmortizacoesExtras bind:amortizacoes bind:aportesRecorrentes />
 
     <div class="barra-acoes">
       <button class="primario" on:click={aoSimular} disabled={simulando}>
