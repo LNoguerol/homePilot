@@ -10,10 +10,11 @@ services:
     volumes:
       - banco_dados:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${HOMEPILOT_DB_SENHA_ROOT}"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 60s
 
   backend:
     build: ./backend
