@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
+from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -22,8 +23,8 @@ def obter_url_banco() -> str:
     if url_explicita:
         return url_explicita
 
-    usuario = os.environ.get("HOMEPILOT_DB_USUARIO", "homepilot")
-    senha = os.environ.get("HOMEPILOT_DB_SENHA", "homepilot")
+    usuario = quote_plus(os.environ.get("HOMEPILOT_DB_USUARIO", "homepilot"))
+    senha = quote_plus(os.environ.get("HOMEPILOT_DB_SENHA", "homepilot"))
     host = os.environ.get("HOMEPILOT_DB_HOST", "localhost")
     porta = os.environ.get("HOMEPILOT_DB_PORT", "3306")
     nome = os.environ.get("HOMEPILOT_DB_NOME", "homepilot")
