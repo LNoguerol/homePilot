@@ -3,16 +3,17 @@ import type {
   AporteRecorrente,
   CenarioTR,
   CompararSaida,
+  ContratoExtraido,
   DadosContrato,
   SimulacaoSaida,
 } from "./tipos";
 
 const BASE_URL = "/api";
 
-async function tratarResposta<T>(resposta: Response): Promise<T> {
+async function tratarResposta<T>(resposta: Response, mensagemPadrao = "Erro desconhecido."): Promise<T> {
   if (!resposta.ok) {
-    const corpo = await resposta.json().catch(() => ({ detail: "Erro desconhecido na simulação." }));
-    throw new Error(corpo.detail ?? "Erro desconhecido na simulação.");
+    const corpo = await resposta.json().catch(() => ({ detail: mensagemPadrao }));
+    throw new Error(corpo.detail ?? mensagemPadrao);
   }
   return resposta.json();
 }
@@ -33,7 +34,7 @@ export async function simular(
       aportes_recorrentes: aportesRecorrentes,
     }),
   });
-  return tratarResposta<SimulacaoSaida>(resposta);
+  return tratarResposta<SimulacaoSaida>(resposta, "Erro desconhecido na simulação.");
 }
 
 export async function compararCenarios(
@@ -47,5 +48,15 @@ export async function compararCenarios(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contrato, amortizacoes, cenarios, aportes_recorrentes: aportesRecorrentes }),
   });
-  return tratarResposta<CompararSaida>(resposta);
+  return tratarResposta<CompararSaida>(resposta, "Erro desconhecido na comparação.");
+}
+
+export async function importarContratoPdf(arquivo: File): Promise<ContratoExtraido> {
+  const formData = new FormData();
+  formData.append("arquivo", arquivo);
+  const resposta = await fetch(`${BASE_URL}/contratos/importar-pdf`, {
+    method: "POST",
+    body: formData,
+  });
+  return tratarResposta<ContratoExtraido>(resposta, "Não foi possível importar o PDF.");
 }

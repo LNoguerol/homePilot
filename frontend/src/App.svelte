@@ -48,33 +48,29 @@
 
   function contratoInicial(): DadosContrato {
     return {
-      data_base: "2026-07-17",
-      saldo_devedor: "332786.77",
+      data_base: "",
+      saldo_devedor: "",
       sistema_amortizacao: "price",
       indexador: "tr",
-      taxa_nominal_anual: "0.1002",
-      taxa_efetiva_informada: "0.1049",
-      prazo_original: 390,
-      prazo_restante: 376,
-      seguros_tarifas_mensais: "130.00",
-      limite_saldo: "350000.00",
-      limite_prestacao: "3800.00",
+      taxa_nominal_anual: "",
+      taxa_efetiva_informada: "",
+      prazo_original: 0,
+      prazo_restante: 0,
+      seguros_tarifas_mensais: "",
+      limite_saldo: "",
+      limite_prestacao: "",
     };
   }
 
   function amortizacoesIniciais(): AmortizacaoExtraordinaria[] {
-    return [2027, 2029, 2031, 2033, 2035].map((ano) => ({
-      data: `${ano}-06-17`,
-      valor: "40000.00",
-      estrategia: "reducao_prazo",
-    }));
+    return [];
   }
 
   let contrato = contratoInicial();
   let amortizacoes = amortizacoesIniciais();
   let aportesRecorrentes: AporteRecorrente[] = [];
-  let cenarioNome = "TR 1,5% a.a.";
-  let taxaTrPersonalizada = "0.015";
+  let cenarioNome = "TR 0,0% a.a.";
+  let taxaTrPersonalizada = "";
 
   const taxasPorCenario: Record<string, string> = {
     "TR 0,0% a.a.": "0.0",
@@ -129,8 +125,8 @@
     contrato = contratoInicial();
     amortizacoes = amortizacoesIniciais();
     aportesRecorrentes = [];
-    cenarioNome = "TR 1,5% a.a.";
-    taxaTrPersonalizada = "0.015";
+    cenarioNome = "TR 0,0% a.a.";
+    taxaTrPersonalizada = "";
     resultado = null;
     comparacao = null;
     erro = null;

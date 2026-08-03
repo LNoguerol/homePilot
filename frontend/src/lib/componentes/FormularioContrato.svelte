@@ -1,10 +1,78 @@
 <script lang="ts">
-  import type { DadosContrato } from "../tipos";
+  import type { ContratoExtraido, DadosContrato } from "../tipos";
   import Ajuda from "./Ajuda.svelte";
+  import { importarContratoPdf } from "../api";
 
   export let contrato: DadosContrato;
   export let cenarioNome: string;
   export let taxaTrPersonalizada: string;
+
+  let importando = false;
+  let mensagemImportacao: string | null = null;
+  let erroImportacao: string | null = null;
+
+  const rotulosCampos: Record<keyof ContratoExtraido, string> = {
+    data_base: "data-base",
+    saldo_devedor: "saldo devedor",
+    sistema_amortizacao: "sistema de amortização",
+    taxa_nominal_anual: "taxa nominal anual",
+    taxa_efetiva_informada: "taxa efetiva informada",
+    prazo_original: "prazo original",
+    prazo_restante: "prazo restante",
+  };
+
+  function aplicar<K extends keyof ContratoExtraido>(
+    campo: K,
+    valor: ContratoExtraido[K],
+    encontrados: string[],
+    naoEncontrados: string[],
+  ) {
+    if (valor === null) {
+      naoEncontrados.push(rotulosCampos[campo]);
+      return;
+    }
+    (contrato as unknown as Record<K, NonNullable<ContratoExtraido[K]>>)[campo] = valor;
+    encontrados.push(rotulosCampos[campo]);
+  }
+
+  function aplicarDadosExtraidos(extraido: ContratoExtraido) {
+    const encontrados: string[] = [];
+    const naoEncontrados: string[] = [];
+
+    aplicar("data_base", extraido.data_base, encontrados, naoEncontrados);
+    aplicar("saldo_devedor", extraido.saldo_devedor, encontrados, naoEncontrados);
+    aplicar("sistema_amortizacao", extraido.sistema_amortizacao, encontrados, naoEncontrados);
+    aplicar("taxa_nominal_anual", extraido.taxa_nominal_anual, encontrados, naoEncontrados);
+    aplicar("taxa_efetiva_informada", extraido.taxa_efetiva_informada, encontrados, naoEncontrados);
+    aplicar("prazo_original", extraido.prazo_original, encontrados, naoEncontrados);
+    aplicar("prazo_restante", extraido.prazo_restante, encontrados, naoEncontrados);
+
+    contrato = contrato;
+    mensagemImportacao =
+      encontrados.length > 0
+        ? `Importado do PDF: ${encontrados.join(", ")}.` +
+          (naoEncontrados.length > 0 ? ` Não encontrado: ${naoEncontrados.join(", ")}.` : "")
+        : "Não foi possível reconhecer nenhum campo nesse PDF.";
+  }
+
+  async function aoSelecionarArquivo(evento: Event) {
+    const entrada = evento.currentTarget as HTMLInputElement;
+    const arquivo = entrada.files?.[0];
+    if (!arquivo) return;
+
+    importando = true;
+    erroImportacao = null;
+    mensagemImportacao = null;
+    try {
+      const extraido = await importarContratoPdf(arquivo);
+      aplicarDadosExtraidos(extraido);
+    } catch (e) {
+      erroImportacao = e instanceof Error ? e.message : "Não foi possível importar o PDF.";
+    } finally {
+      importando = false;
+      entrada.value = "";
+    }
+  }
 
   const cenarios = [
     { nome: "TR 0,0% a.a.", taxa: "0.0" },
@@ -51,6 +119,34 @@
       "Mesmo princípio do limite de saldo, aplicado à prestação total (já com seguros e tarifas). Útil para ver se a parcela caberia no seu orçamento em todos os meses.",
   };
 </script>
+
+<section class="secao secao-importar">
+  <div class="cabecalho-importar">
+    <div>
+      <h3>Importar do extrato</h3>
+      <p class="descricao-importar">
+        Envie o PDF do extrato do banco para preencher automaticamente os campos que ele conseguir
+        reconhecer. Confira os valores antes de simular.
+      </p>
+    </div>
+    <label class="botao-importar" class:desabilitado={importando}>
+      {importando ? "Lendo PDF..." : "Selecionar PDF"}
+      <input
+        type="file"
+        accept="application/pdf"
+        on:change={aoSelecionarArquivo}
+        disabled={importando}
+        hidden
+      />
+    </label>
+  </div>
+  {#if mensagemImportacao}
+    <p class="mensagem-importacao">{mensagemImportacao}</p>
+  {/if}
+  {#if erroImportacao}
+    <p class="erro-importacao">{erroImportacao}</p>
+  {/if}
+</section>
 
 <section class="secao">
   <h3>Dados do contrato</h3>
@@ -208,6 +304,51 @@
   }
   .largura-total {
     grid-column: 1 / -1;
+  }
+  .cabecalho-importar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .descricao-importar {
+    margin: 0.3rem 0 0 0;
+    font-size: 0.82rem;
+    color: var(--cor-texto-secundario);
+    max-width: 46ch;
+  }
+  .botao-importar {
+    background: var(--cor-destaque);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.3rem;
+    border-radius: var(--raio-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+  }
+  .botao-importar:hover {
+    background: var(--cor-destaque-hover);
+  }
+  .botao-importar.desabilitado {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .mensagem-importacao {
+    margin: 0.9rem 0 0 0;
+    font-size: 0.82rem;
+    color: var(--cor-destaque);
+  }
+  .erro-importacao {
+    margin: 0.9rem 0 0 0;
+    font-size: 0.82rem;
+    color: #a12020;
+    background: var(--cor-perigo-fundo);
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--raio-sm);
   }
   input,
   select {
