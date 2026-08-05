@@ -85,12 +85,64 @@
   let comparando = false;
   let erro: string | null = null;
 
+  const rotulosContrato: Record<keyof DadosContrato, string> = {
+    data_base: "Data-base",
+    saldo_devedor: "Saldo devedor",
+    sistema_amortizacao: "Sistema de amortização",
+    indexador: "Indexador",
+    taxa_nominal_anual: "Taxa nominal anual",
+    taxa_efetiva_informada: "Taxa efetiva informada",
+    prazo_original: "Prazo original",
+    prazo_restante: "Prazo restante",
+    seguros_tarifas_mensais: "Seguros e tarifas mensais",
+    limite_saldo: "Limite do saldo devedor",
+    limite_prestacao: "Limite da prestação total",
+  };
+
   function taxaTrAtual(): string {
     return cenarioNome === "Personalizada" ? taxaTrPersonalizada : taxasPorCenario[cenarioNome];
   }
 
+  function campoPreenchido(valor: unknown): boolean {
+    return valor !== "" && valor !== null && valor !== undefined;
+  }
+
+  function camposContratoFaltando(dadosContrato: DadosContrato): (keyof DadosContrato)[] {
+    return (Object.keys(rotulosContrato) as (keyof DadosContrato)[])
+      .filter((campo) => campo !== "sistema_amortizacao" && campo !== "indexador")
+      .filter((campo) => !campoPreenchido(dadosContrato[campo]));
+  }
+
+  // Só marca campos em vermelho depois da primeira tentativa de simular —
+  // mostrar tudo vermelho num formulário recém-aberto seria pior, não melhor.
+  // `contrato` precisa aparecer aqui (e não só dentro da função chamada) para
+  // o Svelte rastrear a dependência e recalcular a cada tecla digitada.
+  let tentouSimular = false;
+  $: camposFaltando = tentouSimular ? new Set(camposContratoFaltando(contrato)) : new Set<keyof DadosContrato>();
+  $: trPersonalizadaFaltando =
+    tentouSimular && cenarioNome === "Personalizada" && !campoPreenchido(taxaTrPersonalizada);
+
+  /** Campos em branco chegam ao backend como "" e viram um erro 422 críptico
+   * do Pydantic — melhor barrar aqui e dizer exatamente o que falta. */
+  function validarContrato(): string | null {
+    const faltando = camposContratoFaltando(contrato).map((campo) => rotulosContrato[campo]);
+
+    if (cenarioNome === "Personalizada" && !campoPreenchido(taxaTrPersonalizada)) {
+      faltando.push("TR anual personalizada");
+    }
+
+    if (faltando.length === 0) return null;
+    return `Preencha os campos obrigatórios antes de simular: ${faltando.join(", ")}.`;
+  }
+
   async function aoSimular() {
     erro = null;
+    tentouSimular = true;
+    const mensagemValidacao = validarContrato();
+    if (mensagemValidacao) {
+      erro = mensagemValidacao;
+      return;
+    }
     simulando = true;
     try {
       resultado = await simular(
@@ -109,6 +161,12 @@
 
   async function aoComparar() {
     erro = null;
+    tentouSimular = true;
+    const mensagemValidacao = validarContrato();
+    if (mensagemValidacao) {
+      erro = mensagemValidacao;
+      return;
+    }
     comparando = true;
     try {
       const cenarios = Object.entries(taxasPorCenario).map(([nome, taxa_anual]) => ({ nome, taxa_anual }));
@@ -157,7 +215,13 @@
 {:else}
   <main>
     <p class="subtitulo">Planejamento inteligente para financiamento imobiliário</p>
-    <FormularioContrato bind:contrato bind:cenarioNome bind:taxaTrPersonalizada />
+    <FormularioContrato
+      bind:contrato
+      bind:cenarioNome
+      bind:taxaTrPersonalizada
+      {camposFaltando}
+      {trPersonalizadaFaltando}
+    />
     <AmortizacoesExtras bind:amortizacoes bind:aportesRecorrentes />
 
     <div class="barra-acoes">

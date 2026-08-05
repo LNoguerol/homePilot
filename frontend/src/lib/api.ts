@@ -13,7 +13,15 @@ const BASE_URL = "/api";
 async function tratarResposta<T>(resposta: Response, mensagemPadrao = "Erro desconhecido."): Promise<T> {
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => ({ detail: mensagemPadrao }));
-    throw new Error(corpo.detail ?? mensagemPadrao);
+    // Erros de validação do Pydantic chegam em `detail` como lista de objetos,
+    // não como texto — sem esse tratamento a mensagem vira "[object Object]".
+    const mensagem =
+      typeof corpo.detail === "string"
+        ? corpo.detail
+        : Array.isArray(corpo.detail)
+          ? "Preencha corretamente todos os campos obrigatórios antes de simular."
+          : mensagemPadrao;
+    throw new Error(mensagem);
   }
   return resposta.json();
 }

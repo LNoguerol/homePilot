@@ -6,6 +6,8 @@
   export let contrato: DadosContrato;
   export let cenarioNome: string;
   export let taxaTrPersonalizada: string;
+  export let camposFaltando: Set<keyof DadosContrato> = new Set();
+  export let trPersonalizadaFaltando = false;
 
   let importando = false;
   let mensagemImportacao: string | null = null;
@@ -156,28 +158,41 @@
         Data-base
         <Ajuda rotulo="a data-base" texto={textos.dataBase} />
       </span>
-      <input type="date" bind:value={contrato.data_base} />
+      <input type="date" bind:value={contrato.data_base} class:invalido={camposFaltando.has("data_base")} />
     </label>
     <label>
       <span class="rotulo-linha">
         Saldo devedor (R$)
         <Ajuda rotulo="o saldo devedor" texto={textos.saldoDevedor} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.saldo_devedor} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.saldo_devedor}
+        class:invalido={camposFaltando.has("saldo_devedor")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Prazo original (meses)
         <Ajuda rotulo="o prazo original" texto={textos.prazoOriginal} />
       </span>
-      <input type="number" bind:value={contrato.prazo_original} />
+      <input
+        type="number"
+        bind:value={contrato.prazo_original}
+        class:invalido={camposFaltando.has("prazo_original")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Prazo restante (meses)
         <Ajuda rotulo="o prazo restante" texto={textos.prazoRestante} />
       </span>
-      <input type="number" bind:value={contrato.prazo_restante} />
+      <input
+        type="number"
+        bind:value={contrato.prazo_restante}
+        class:invalido={camposFaltando.has("prazo_restante")}
+      />
     </label>
     <label class="largura-total">
       <span class="rotulo-linha">
@@ -204,14 +219,24 @@
         Taxa nominal anual (fração)
         <Ajuda rotulo="a taxa nominal anual" texto={textos.taxaNominal} />
       </span>
-      <input type="number" step="0.0001" bind:value={contrato.taxa_nominal_anual} />
+      <input
+        type="number"
+        step="0.0001"
+        bind:value={contrato.taxa_nominal_anual}
+        class:invalido={camposFaltando.has("taxa_nominal_anual")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Taxa efetiva informada (fração)
         <Ajuda rotulo="a taxa efetiva informada" texto={textos.taxaEfetiva} />
       </span>
-      <input type="number" step="0.0001" bind:value={contrato.taxa_efetiva_informada} />
+      <input
+        type="number"
+        step="0.0001"
+        bind:value={contrato.taxa_efetiva_informada}
+        class:invalido={camposFaltando.has("taxa_efetiva_informada")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
@@ -230,7 +255,12 @@
           TR anual personalizada (fração)
           <Ajuda rotulo="a TR personalizada" texto={textos.trPersonalizada} />
         </span>
-        <input type="number" step="0.0001" bind:value={taxaTrPersonalizada} />
+        <input
+          type="number"
+          step="0.0001"
+          bind:value={taxaTrPersonalizada}
+          class:invalido={trPersonalizadaFaltando}
+        />
       </label>
     {/if}
   </div>
@@ -244,7 +274,12 @@
         Seguros e tarifas mensais (R$)
         <Ajuda rotulo="seguros e tarifas mensais" texto={textos.segurosTarifas} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.seguros_tarifas_mensais} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.seguros_tarifas_mensais}
+        class:invalido={camposFaltando.has("seguros_tarifas_mensais")}
+      />
     </label>
   </div>
 </section>
@@ -257,14 +292,24 @@
         Limite do saldo devedor (R$)
         <Ajuda rotulo="o limite de saldo devedor" texto={textos.limiteSaldo} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.limite_saldo} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.limite_saldo}
+        class:invalido={camposFaltando.has("limite_saldo")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Limite da prestação total (R$)
         <Ajuda rotulo="o limite de prestação total" texto={textos.limitePrestacao} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.limite_prestacao} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.limite_prestacao}
+        class:invalido={camposFaltando.has("limite_prestacao")}
+      />
     </label>
   </div>
 </section>
@@ -364,5 +409,12 @@
   select:focus {
     border-color: var(--cor-destaque);
     box-shadow: 0 0 0 3px var(--cor-destaque-fundo);
+  }
+  input.invalido {
+    border-color: var(--cor-perigo);
+    background: var(--cor-perigo-fundo);
+  }
+  input.invalido:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
   }
 </style>
