@@ -80,6 +80,7 @@
   };
 
   let resultado: SimulacaoSaida | null = null;
+  let resultadoSemAmortizacao: SimulacaoSaida | null = null;
   let comparacao: ResumoCenario[] | null = null;
   let simulando = false;
   let comparando = false;
@@ -145,15 +146,20 @@
     }
     simulando = true;
     try {
-      resultado = await simular(
-        contrato,
-        { nome: cenarioNome, taxa_anual: taxaTrAtual() },
-        amortizacoes,
-        aportesRecorrentes,
-      );
+      const temAporteExtra = amortizacoes.length > 0 || aportesRecorrentes.length > 0;
+      const cenarioTr = { nome: cenarioNome, taxa_anual: taxaTrAtual() };
+      const [saidaComAmortizacao, saidaSemAmortizacao] = await Promise.all([
+        simular(contrato, cenarioTr, amortizacoes, aportesRecorrentes),
+        // Linha comparativa do gráfico de saldo: mesmo contrato, sem aportes
+        // extraordinários. Só faz sentido buscar quando há aporte a comparar.
+        temAporteExtra ? simular(contrato, cenarioTr, [], []) : Promise.resolve(null),
+      ]);
+      resultado = saidaComAmortizacao;
+      resultadoSemAmortizacao = saidaSemAmortizacao;
     } catch (e) {
       erro = e instanceof Error ? e.message : "Erro desconhecido na simulação.";
       resultado = null;
+      resultadoSemAmortizacao = null;
     } finally {
       simulando = false;
     }
@@ -186,6 +192,7 @@
     cenarioNome = "TR 0,0% a.a.";
     taxaTrPersonalizada = "";
     resultado = null;
+    resultadoSemAmortizacao = null;
     comparacao = null;
     erro = null;
   }
@@ -237,8 +244,12 @@
 
     {#if resultado}
       <CartoesResumo resumo={resultado.resumo} />
-      <GraficoSaldo parcelas={resultado.parcelas} />
-      <GraficoPrestacao parcelas={resultado.parcelas} limitePrestacao={contrato.limite_prestacao} />
+      <GraficoSaldo parcelas={resultado.parcelas} parcelasSemAmortizacao={resultadoSemAmortizacao?.parcelas} />
+      <GraficoPrestacao
+        parcelas={resultado.parcelas}
+        limitePrestacao={contrato.limite_prestacao}
+        parcelasSemAmortizacao={resultadoSemAmortizacao?.parcelas}
+      />
       <GraficoComposicao parcelas={resultado.parcelas} />
       <TabelaCronograma parcelas={resultado.parcelas} />
     {/if}
