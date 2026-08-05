@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from homepilot.api.auth import roteador as roteador_auth
+from homepilot.api.importacao import roteador as roteador_importacao
 from homepilot.api.simulacoes import roteador
 from homepilot.auth.excecoes import ErroCadastroInvalido, ErroCredenciaisInvalidas, ErroTokenInvalido
 from homepilot.core.excecoes import ErroSimulacaoInvalida
@@ -48,3 +49,4 @@ async def verificar_saude() -> dict[str, str]:
 
 app.include_router(roteador)
 app.include_router(roteador_auth)
+app.include_router(roteador_importacao)

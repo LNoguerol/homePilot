@@ -48,33 +48,29 @@
 
   function contratoInicial(): DadosContrato {
     return {
-      data_base: "2026-07-17",
-      saldo_devedor: "332786.77",
+      data_base: "",
+      saldo_devedor: "",
       sistema_amortizacao: "price",
       indexador: "tr",
-      taxa_nominal_anual: "0.1002",
-      taxa_efetiva_informada: "0.1049",
-      prazo_original: 390,
-      prazo_restante: 376,
-      seguros_tarifas_mensais: "130.00",
-      limite_saldo: "350000.00",
-      limite_prestacao: "3800.00",
+      taxa_nominal_anual: "",
+      taxa_efetiva_informada: "",
+      prazo_original: 0,
+      prazo_restante: 0,
+      seguros_tarifas_mensais: "",
+      limite_saldo: "",
+      limite_prestacao: "",
     };
   }
 
   function amortizacoesIniciais(): AmortizacaoExtraordinaria[] {
-    return [2027, 2029, 2031, 2033, 2035].map((ano) => ({
-      data: `${ano}-06-17`,
-      valor: "40000.00",
-      estrategia: "reducao_prazo",
-    }));
+    return [];
   }
 
   let contrato = contratoInicial();
   let amortizacoes = amortizacoesIniciais();
   let aportesRecorrentes: AporteRecorrente[] = [];
-  let cenarioNome = "TR 1,5% a.a.";
-  let taxaTrPersonalizada = "0.015";
+  let cenarioNome = "TR 0,0% a.a.";
+  let taxaTrPersonalizada = "";
 
   const taxasPorCenario: Record<string, string> = {
     "TR 0,0% a.a.": "0.0",
@@ -89,12 +85,64 @@
   let comparando = false;
   let erro: string | null = null;
 
+  const rotulosContrato: Record<keyof DadosContrato, string> = {
+    data_base: "Data-base",
+    saldo_devedor: "Saldo devedor",
+    sistema_amortizacao: "Sistema de amortização",
+    indexador: "Indexador",
+    taxa_nominal_anual: "Taxa nominal anual",
+    taxa_efetiva_informada: "Taxa efetiva informada",
+    prazo_original: "Prazo original",
+    prazo_restante: "Prazo restante",
+    seguros_tarifas_mensais: "Seguros e tarifas mensais",
+    limite_saldo: "Limite do saldo devedor",
+    limite_prestacao: "Limite da prestação total",
+  };
+
   function taxaTrAtual(): string {
     return cenarioNome === "Personalizada" ? taxaTrPersonalizada : taxasPorCenario[cenarioNome];
   }
 
+  function campoPreenchido(valor: unknown): boolean {
+    return valor !== "" && valor !== null && valor !== undefined;
+  }
+
+  function camposContratoFaltando(dadosContrato: DadosContrato): (keyof DadosContrato)[] {
+    return (Object.keys(rotulosContrato) as (keyof DadosContrato)[])
+      .filter((campo) => campo !== "sistema_amortizacao" && campo !== "indexador")
+      .filter((campo) => !campoPreenchido(dadosContrato[campo]));
+  }
+
+  // Só marca campos em vermelho depois da primeira tentativa de simular —
+  // mostrar tudo vermelho num formulário recém-aberto seria pior, não melhor.
+  // `contrato` precisa aparecer aqui (e não só dentro da função chamada) para
+  // o Svelte rastrear a dependência e recalcular a cada tecla digitada.
+  let tentouSimular = false;
+  $: camposFaltando = tentouSimular ? new Set(camposContratoFaltando(contrato)) : new Set<keyof DadosContrato>();
+  $: trPersonalizadaFaltando =
+    tentouSimular && cenarioNome === "Personalizada" && !campoPreenchido(taxaTrPersonalizada);
+
+  /** Campos em branco chegam ao backend como "" e viram um erro 422 críptico
+   * do Pydantic — melhor barrar aqui e dizer exatamente o que falta. */
+  function validarContrato(): string | null {
+    const faltando = camposContratoFaltando(contrato).map((campo) => rotulosContrato[campo]);
+
+    if (cenarioNome === "Personalizada" && !campoPreenchido(taxaTrPersonalizada)) {
+      faltando.push("TR anual personalizada");
+    }
+
+    if (faltando.length === 0) return null;
+    return `Preencha os campos obrigatórios antes de simular: ${faltando.join(", ")}.`;
+  }
+
   async function aoSimular() {
     erro = null;
+    tentouSimular = true;
+    const mensagemValidacao = validarContrato();
+    if (mensagemValidacao) {
+      erro = mensagemValidacao;
+      return;
+    }
     simulando = true;
     try {
       resultado = await simular(
@@ -113,6 +161,12 @@
 
   async function aoComparar() {
     erro = null;
+    tentouSimular = true;
+    const mensagemValidacao = validarContrato();
+    if (mensagemValidacao) {
+      erro = mensagemValidacao;
+      return;
+    }
     comparando = true;
     try {
       const cenarios = Object.entries(taxasPorCenario).map(([nome, taxa_anual]) => ({ nome, taxa_anual }));
@@ -129,8 +183,8 @@
     contrato = contratoInicial();
     amortizacoes = amortizacoesIniciais();
     aportesRecorrentes = [];
-    cenarioNome = "TR 1,5% a.a.";
-    taxaTrPersonalizada = "0.015";
+    cenarioNome = "TR 0,0% a.a.";
+    taxaTrPersonalizada = "";
     resultado = null;
     comparacao = null;
     erro = null;
@@ -161,7 +215,13 @@
 {:else}
   <main>
     <p class="subtitulo">Planejamento inteligente para financiamento imobiliário</p>
-    <FormularioContrato bind:contrato bind:cenarioNome bind:taxaTrPersonalizada />
+    <FormularioContrato
+      bind:contrato
+      bind:cenarioNome
+      bind:taxaTrPersonalizada
+      {camposFaltando}
+      {trPersonalizadaFaltando}
+    />
     <AmortizacoesExtras bind:amortizacoes bind:aportesRecorrentes />
 
     <div class="barra-acoes">

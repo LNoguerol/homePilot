@@ -15,6 +15,16 @@ export interface DadosContrato {
   limite_prestacao: string;
 }
 
+export interface ContratoExtraido {
+  data_base: string | null;
+  saldo_devedor: string | null;
+  sistema_amortizacao: SistemaAmortizacao | null;
+  taxa_nominal_anual: string | null;
+  taxa_efetiva_informada: string | null;
+  prazo_original: number | null;
+  prazo_restante: number | null;
+}
+
 export interface AmortizacaoExtraordinaria {
   data: string;
   valor: string;

@@ -1,10 +1,80 @@
 <script lang="ts">
-  import type { DadosContrato } from "../tipos";
+  import type { ContratoExtraido, DadosContrato } from "../tipos";
   import Ajuda from "./Ajuda.svelte";
+  import { importarContratoPdf } from "../api";
 
   export let contrato: DadosContrato;
   export let cenarioNome: string;
   export let taxaTrPersonalizada: string;
+  export let camposFaltando: Set<keyof DadosContrato> = new Set();
+  export let trPersonalizadaFaltando = false;
+
+  let importando = false;
+  let mensagemImportacao: string | null = null;
+  let erroImportacao: string | null = null;
+
+  const rotulosCampos: Record<keyof ContratoExtraido, string> = {
+    data_base: "data-base",
+    saldo_devedor: "saldo devedor",
+    sistema_amortizacao: "sistema de amortização",
+    taxa_nominal_anual: "taxa nominal anual",
+    taxa_efetiva_informada: "taxa efetiva informada",
+    prazo_original: "prazo original",
+    prazo_restante: "prazo restante",
+  };
+
+  function aplicar<K extends keyof ContratoExtraido>(
+    campo: K,
+    valor: ContratoExtraido[K],
+    encontrados: string[],
+    naoEncontrados: string[],
+  ) {
+    if (valor === null) {
+      naoEncontrados.push(rotulosCampos[campo]);
+      return;
+    }
+    (contrato as unknown as Record<K, NonNullable<ContratoExtraido[K]>>)[campo] = valor;
+    encontrados.push(rotulosCampos[campo]);
+  }
+
+  function aplicarDadosExtraidos(extraido: ContratoExtraido) {
+    const encontrados: string[] = [];
+    const naoEncontrados: string[] = [];
+
+    aplicar("data_base", extraido.data_base, encontrados, naoEncontrados);
+    aplicar("saldo_devedor", extraido.saldo_devedor, encontrados, naoEncontrados);
+    aplicar("sistema_amortizacao", extraido.sistema_amortizacao, encontrados, naoEncontrados);
+    aplicar("taxa_nominal_anual", extraido.taxa_nominal_anual, encontrados, naoEncontrados);
+    aplicar("taxa_efetiva_informada", extraido.taxa_efetiva_informada, encontrados, naoEncontrados);
+    aplicar("prazo_original", extraido.prazo_original, encontrados, naoEncontrados);
+    aplicar("prazo_restante", extraido.prazo_restante, encontrados, naoEncontrados);
+
+    contrato = contrato;
+    mensagemImportacao =
+      encontrados.length > 0
+        ? `Importado do PDF: ${encontrados.join(", ")}.` +
+          (naoEncontrados.length > 0 ? ` Não encontrado: ${naoEncontrados.join(", ")}.` : "")
+        : "Não foi possível reconhecer nenhum campo nesse PDF.";
+  }
+
+  async function aoSelecionarArquivo(evento: Event) {
+    const entrada = evento.currentTarget as HTMLInputElement;
+    const arquivo = entrada.files?.[0];
+    if (!arquivo) return;
+
+    importando = true;
+    erroImportacao = null;
+    mensagemImportacao = null;
+    try {
+      const extraido = await importarContratoPdf(arquivo);
+      aplicarDadosExtraidos(extraido);
+    } catch (e) {
+      erroImportacao = e instanceof Error ? e.message : "Não foi possível importar o PDF.";
+    } finally {
+      importando = false;
+      entrada.value = "";
+    }
+  }
 
   const cenarios = [
     { nome: "TR 0,0% a.a.", taxa: "0.0" },
@@ -52,6 +122,34 @@
   };
 </script>
 
+<section class="secao secao-importar">
+  <div class="cabecalho-importar">
+    <div>
+      <h3>Importar do extrato</h3>
+      <p class="descricao-importar">
+        Envie o PDF do extrato do banco para preencher automaticamente os campos que ele conseguir
+        reconhecer. Confira os valores antes de simular.
+      </p>
+    </div>
+    <label class="botao-importar" class:desabilitado={importando}>
+      {importando ? "Lendo PDF..." : "Selecionar PDF"}
+      <input
+        type="file"
+        accept="application/pdf"
+        on:change={aoSelecionarArquivo}
+        disabled={importando}
+        hidden
+      />
+    </label>
+  </div>
+  {#if mensagemImportacao}
+    <p class="mensagem-importacao">{mensagemImportacao}</p>
+  {/if}
+  {#if erroImportacao}
+    <p class="erro-importacao">{erroImportacao}</p>
+  {/if}
+</section>
+
 <section class="secao">
   <h3>Dados do contrato</h3>
   <div class="grade">
@@ -60,28 +158,41 @@
         Data-base
         <Ajuda rotulo="a data-base" texto={textos.dataBase} />
       </span>
-      <input type="date" bind:value={contrato.data_base} />
+      <input type="date" bind:value={contrato.data_base} class:invalido={camposFaltando.has("data_base")} />
     </label>
     <label>
       <span class="rotulo-linha">
         Saldo devedor (R$)
         <Ajuda rotulo="o saldo devedor" texto={textos.saldoDevedor} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.saldo_devedor} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.saldo_devedor}
+        class:invalido={camposFaltando.has("saldo_devedor")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Prazo original (meses)
         <Ajuda rotulo="o prazo original" texto={textos.prazoOriginal} />
       </span>
-      <input type="number" bind:value={contrato.prazo_original} />
+      <input
+        type="number"
+        bind:value={contrato.prazo_original}
+        class:invalido={camposFaltando.has("prazo_original")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Prazo restante (meses)
         <Ajuda rotulo="o prazo restante" texto={textos.prazoRestante} />
       </span>
-      <input type="number" bind:value={contrato.prazo_restante} />
+      <input
+        type="number"
+        bind:value={contrato.prazo_restante}
+        class:invalido={camposFaltando.has("prazo_restante")}
+      />
     </label>
     <label class="largura-total">
       <span class="rotulo-linha">
@@ -108,14 +219,24 @@
         Taxa nominal anual (fração)
         <Ajuda rotulo="a taxa nominal anual" texto={textos.taxaNominal} />
       </span>
-      <input type="number" step="0.0001" bind:value={contrato.taxa_nominal_anual} />
+      <input
+        type="number"
+        step="0.0001"
+        bind:value={contrato.taxa_nominal_anual}
+        class:invalido={camposFaltando.has("taxa_nominal_anual")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Taxa efetiva informada (fração)
         <Ajuda rotulo="a taxa efetiva informada" texto={textos.taxaEfetiva} />
       </span>
-      <input type="number" step="0.0001" bind:value={contrato.taxa_efetiva_informada} />
+      <input
+        type="number"
+        step="0.0001"
+        bind:value={contrato.taxa_efetiva_informada}
+        class:invalido={camposFaltando.has("taxa_efetiva_informada")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
@@ -134,7 +255,12 @@
           TR anual personalizada (fração)
           <Ajuda rotulo="a TR personalizada" texto={textos.trPersonalizada} />
         </span>
-        <input type="number" step="0.0001" bind:value={taxaTrPersonalizada} />
+        <input
+          type="number"
+          step="0.0001"
+          bind:value={taxaTrPersonalizada}
+          class:invalido={trPersonalizadaFaltando}
+        />
       </label>
     {/if}
   </div>
@@ -148,7 +274,12 @@
         Seguros e tarifas mensais (R$)
         <Ajuda rotulo="seguros e tarifas mensais" texto={textos.segurosTarifas} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.seguros_tarifas_mensais} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.seguros_tarifas_mensais}
+        class:invalido={camposFaltando.has("seguros_tarifas_mensais")}
+      />
     </label>
   </div>
 </section>
@@ -161,14 +292,24 @@
         Limite do saldo devedor (R$)
         <Ajuda rotulo="o limite de saldo devedor" texto={textos.limiteSaldo} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.limite_saldo} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.limite_saldo}
+        class:invalido={camposFaltando.has("limite_saldo")}
+      />
     </label>
     <label>
       <span class="rotulo-linha">
         Limite da prestação total (R$)
         <Ajuda rotulo="o limite de prestação total" texto={textos.limitePrestacao} />
       </span>
-      <input type="number" step="0.01" bind:value={contrato.limite_prestacao} />
+      <input
+        type="number"
+        step="0.01"
+        bind:value={contrato.limite_prestacao}
+        class:invalido={camposFaltando.has("limite_prestacao")}
+      />
     </label>
   </div>
 </section>
@@ -209,6 +350,51 @@
   .largura-total {
     grid-column: 1 / -1;
   }
+  .cabecalho-importar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .descricao-importar {
+    margin: 0.3rem 0 0 0;
+    font-size: 0.82rem;
+    color: var(--cor-texto-secundario);
+    max-width: 46ch;
+  }
+  .botao-importar {
+    background: var(--cor-destaque);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.3rem;
+    border-radius: var(--raio-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+  }
+  .botao-importar:hover {
+    background: var(--cor-destaque-hover);
+  }
+  .botao-importar.desabilitado {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .mensagem-importacao {
+    margin: 0.9rem 0 0 0;
+    font-size: 0.82rem;
+    color: var(--cor-destaque);
+  }
+  .erro-importacao {
+    margin: 0.9rem 0 0 0;
+    font-size: 0.82rem;
+    color: #a12020;
+    background: var(--cor-perigo-fundo);
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--raio-sm);
+  }
   input,
   select {
     padding: 0.5rem 0.65rem;
@@ -223,5 +409,12 @@
   select:focus {
     border-color: var(--cor-destaque);
     box-shadow: 0 0 0 3px var(--cor-destaque-fundo);
+  }
+  input.invalido {
+    border-color: var(--cor-perigo);
+    background: var(--cor-perigo-fundo);
+  }
+  input.invalido:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
   }
 </style>
