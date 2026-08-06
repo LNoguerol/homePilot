@@ -13,11 +13,19 @@ a.a., que bate com a taxa efetiva informada no contrato — confirmando a
 convenção adotada. A taxa efetiva não é usada diretamente em nenhum cálculo
 mensal.
 
-Já a TR (e qualquer outro indexador de correção monetária) usa conversão por
-juros compostos, pois representa um índice de correção que capitaliza mês a
-mês: taxa_mensal = (1 + taxa_anual) ** (1/12) - 1.
+Já a TR e a poupança (e qualquer outro indexador de correção monetária) usam
+conversão por juros compostos, pois representam um índice de correção que
+capitaliza mês a mês: taxa_mensal = (1 + taxa_anual) ** (1/12) - 1.
+
+A poupança é modelada aqui como um cenário de taxa anual constante, na mesma
+convenção simplificada usada para a TR — não implementa a regra oficial do
+Banco Central (TR + 0,5% a.m. quando a Selic meta é maior que 8,5% a.a., ou
+TR + 70% da Selic meta a.m. caso contrário), que depende da Selic vigente mês
+a mês e está fora do escopo desta versão. Ver `docs/regras-financeiras.md`.
 """
 from decimal import Decimal
+
+from homepilot.core.modelos import Indexador
 
 DOZE = Decimal(12)
 UM = Decimal(1)
@@ -52,3 +60,15 @@ CENARIOS_TR_PADRAO: tuple[tuple[str, Decimal], ...] = (
     ("TR 2,0% a.a.", Decimal("0.02")),
     ("TR 2,5% a.a.", Decimal("0.025")),
 )
+
+CENARIOS_POUPANCA_PADRAO: tuple[tuple[str, Decimal], ...] = (
+    ("Poupança 5,0% a.a.", Decimal("0.05")),
+    ("Poupança 6,0% a.a.", Decimal("0.06")),
+    ("Poupança 7,0% a.a.", Decimal("0.07")),
+    ("Poupança 8,0% a.a.", Decimal("0.08")),
+)
+
+CENARIOS_PADRAO_POR_INDEXADOR: dict[Indexador, tuple[tuple[str, Decimal], ...]] = {
+    Indexador.TR: CENARIOS_TR_PADRAO,
+    Indexador.POUPANCA: CENARIOS_POUPANCA_PADRAO,
+}

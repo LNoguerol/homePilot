@@ -26,7 +26,7 @@
           <tr>
             <th>Data</th>
             <th>Saldo inicial</th>
-            <th>TR</th>
+            <th>Indexador</th>
             <th>Juros</th>
             <th>Amortização</th>
             <th>Amortização extra</th>
@@ -39,7 +39,7 @@
             <tr class:alerta={p.alerta_saldo || p.alerta_prestacao}>
               <td>{formatarCompetencia(p.competencia)}</td>
               <td>{formatarMoeda(p.saldo_inicial)}</td>
-              <td>{formatarMoeda(p.correcao_tr)}</td>
+              <td>{formatarMoeda(p.correcao_indexador)}</td>
               <td>{formatarMoeda(p.juros)}</td>
               <td>{formatarMoeda(p.amortizacao_ordinaria)}</td>
               <td>{formatarMoeda(p.amortizacao_extraordinaria)}</td>

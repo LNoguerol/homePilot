@@ -13,6 +13,7 @@
   import Logo from "./lib/componentes/Logo.svelte";
   import { simular, compararCenarios } from "./lib/api";
   import { buscarUsuarioAtual, limparToken, obterToken } from "./lib/autenticacao";
+  import { CENARIOS_POR_INDEXADOR, ROTULO_INDEXADOR } from "./lib/cenariosIndexador";
   import type {
     AmortizacaoExtraordinaria,
     AporteRecorrente,
@@ -69,15 +70,12 @@
   let contrato = contratoInicial();
   let amortizacoes = amortizacoesIniciais();
   let aportesRecorrentes: AporteRecorrente[] = [];
-  let cenarioNome = "TR 0,0% a.a.";
-  let taxaTrPersonalizada = "";
+  let cenarioNome = CENARIOS_POR_INDEXADOR.tr[0].nome;
+  let taxaIndexadorPersonalizada = "";
 
-  const taxasPorCenario: Record<string, string> = {
-    "TR 0,0% a.a.": "0.0",
-    "TR 1,5% a.a.": "0.015",
-    "TR 2,0% a.a.": "0.02",
-    "TR 2,5% a.a.": "0.025",
-  };
+  $: taxasPorCenario = Object.fromEntries(
+    CENARIOS_POR_INDEXADOR[contrato.indexador].map((c) => [c.nome, c.taxa]),
+  ) as Record<string, string>;
 
   let resultado: SimulacaoSaida | null = null;
   let resultadoSemAmortizacao: SimulacaoSaida | null = null;
@@ -100,8 +98,8 @@
     limite_prestacao: "Limite da prestação total",
   };
 
-  function taxaTrAtual(): string {
-    return cenarioNome === "Personalizada" ? taxaTrPersonalizada : taxasPorCenario[cenarioNome];
+  function taxaIndexadorAtual(): string {
+    return cenarioNome === "Personalizada" ? taxaIndexadorPersonalizada : taxasPorCenario[cenarioNome];
   }
 
   function campoPreenchido(valor: unknown): boolean {
@@ -120,16 +118,16 @@
   // o Svelte rastrear a dependência e recalcular a cada tecla digitada.
   let tentouSimular = false;
   $: camposFaltando = tentouSimular ? new Set(camposContratoFaltando(contrato)) : new Set<keyof DadosContrato>();
-  $: trPersonalizadaFaltando =
-    tentouSimular && cenarioNome === "Personalizada" && !campoPreenchido(taxaTrPersonalizada);
+  $: indexadorPersonalizadaFaltando =
+    tentouSimular && cenarioNome === "Personalizada" && !campoPreenchido(taxaIndexadorPersonalizada);
 
   /** Campos em branco chegam ao backend como "" e viram um erro 422 críptico
    * do Pydantic — melhor barrar aqui e dizer exatamente o que falta. */
   function validarContrato(): string | null {
     const faltando = camposContratoFaltando(contrato).map((campo) => rotulosContrato[campo]);
 
-    if (cenarioNome === "Personalizada" && !campoPreenchido(taxaTrPersonalizada)) {
-      faltando.push("TR anual personalizada");
+    if (cenarioNome === "Personalizada" && !campoPreenchido(taxaIndexadorPersonalizada)) {
+      faltando.push(`${ROTULO_INDEXADOR[contrato.indexador]} personalizada`);
     }
 
     if (faltando.length === 0) return null;
@@ -147,12 +145,12 @@
     simulando = true;
     try {
       const temAporteExtra = amortizacoes.length > 0 || aportesRecorrentes.length > 0;
-      const cenarioTr = { nome: cenarioNome, taxa_anual: taxaTrAtual() };
+      const cenarioIndexador = { nome: cenarioNome, taxa_anual: taxaIndexadorAtual() };
       const [saidaComAmortizacao, saidaSemAmortizacao] = await Promise.all([
-        simular(contrato, cenarioTr, amortizacoes, aportesRecorrentes),
+        simular(contrato, cenarioIndexador, amortizacoes, aportesRecorrentes),
         // Linha comparativa do gráfico de saldo: mesmo contrato, sem aportes
         // extraordinários. Só faz sentido buscar quando há aporte a comparar.
-        temAporteExtra ? simular(contrato, cenarioTr, [], []) : Promise.resolve(null),
+        temAporteExtra ? simular(contrato, cenarioIndexador, [], []) : Promise.resolve(null),
       ]);
       resultado = saidaComAmortizacao;
       resultadoSemAmortizacao = saidaSemAmortizacao;
@@ -189,8 +187,8 @@
     contrato = contratoInicial();
     amortizacoes = amortizacoesIniciais();
     aportesRecorrentes = [];
-    cenarioNome = "TR 0,0% a.a.";
-    taxaTrPersonalizada = "";
+    cenarioNome = CENARIOS_POR_INDEXADOR.tr[0].nome;
+    taxaIndexadorPersonalizada = "";
     resultado = null;
     resultadoSemAmortizacao = null;
     comparacao = null;
@@ -225,9 +223,9 @@
     <FormularioContrato
       bind:contrato
       bind:cenarioNome
-      bind:taxaTrPersonalizada
+      bind:taxaIndexadorPersonalizada
       {camposFaltando}
-      {trPersonalizadaFaltando}
+      {indexadorPersonalizadaFaltando}
     />
     <AmortizacoesExtras bind:amortizacoes bind:aportesRecorrentes />
 

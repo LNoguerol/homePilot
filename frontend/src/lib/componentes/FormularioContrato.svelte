@@ -1,13 +1,14 @@
 <script lang="ts">
-  import type { ContratoExtraido, DadosContrato } from "../tipos";
+  import type { ContratoExtraido, DadosContrato, Indexador } from "../tipos";
   import Ajuda from "./Ajuda.svelte";
   import { importarContratoPdf } from "../api";
+  import { CENARIOS_POR_INDEXADOR, ROTULO_INDEXADOR } from "../cenariosIndexador";
 
   export let contrato: DadosContrato;
   export let cenarioNome: string;
-  export let taxaTrPersonalizada: string;
+  export let taxaIndexadorPersonalizada: string;
   export let camposFaltando: Set<keyof DadosContrato> = new Set();
-  export let trPersonalizadaFaltando = false;
+  export let indexadorPersonalizadaFaltando = false;
 
   let importando = false;
   let mensagemImportacao: string | null = null;
@@ -76,13 +77,22 @@
     }
   }
 
-  const cenarios = [
-    { nome: "TR 0,0% a.a.", taxa: "0.0" },
-    { nome: "TR 1,5% a.a.", taxa: "0.015" },
-    { nome: "TR 2,0% a.a.", taxa: "0.02" },
-    { nome: "TR 2,5% a.a.", taxa: "0.025" },
-    { nome: "Personalizada", taxa: "custom" },
-  ];
+  const indexadores = [
+    { valor: "tr", rotulo: "TR" },
+    { valor: "poupanca", rotulo: "Poupança" },
+  ] as const;
+
+  $: cenarios = [...CENARIOS_POR_INDEXADOR[contrato.indexador], { nome: "Personalizada", taxa: "custom" }];
+
+  // Troca de indexador invalida o cenário selecionado (ex.: "TR 1,5% a.a."
+  // não existe na lista da poupança) — volta para o primeiro cenário padrão
+  // do novo indexador em vez de deixar uma seleção inconsistente.
+  let indexadorAnterior: Indexador = contrato.indexador;
+  $: if (contrato.indexador !== indexadorAnterior) {
+    indexadorAnterior = contrato.indexador;
+    cenarioNome = CENARIOS_POR_INDEXADOR[contrato.indexador][0].nome;
+    taxaIndexadorPersonalizada = "";
+  }
 
   const sistemas = [
     { valor: "price", rotulo: "Price — prestação constante" },
@@ -91,7 +101,7 @@
 
   const explicacaoSistema: Record<string, string> = {
     price:
-      "Price: a prestação é a grandeza constante e a amortização é o que sobra dela depois de pagar os juros. Começa mais barata, mas amortiza devagar no início e paga mais juros no total. Com TR, o saldo pode até crescer nos primeiros anos.",
+      "Price: a prestação é a grandeza constante e a amortização é o que sobra dela depois de pagar os juros. Começa mais barata, mas amortiza devagar no início e paga mais juros no total. Com o indexador, o saldo pode até crescer nos primeiros anos.",
     sac:
       "SAC: a amortização é a grandeza constante (saldo ÷ prazo) e a prestação é ela mais os juros, por isso a parcela é decrescente. Começa mais caro, mas o saldo cai mais rápido desde o primeiro mês e o total de juros é bem menor.",
   };
@@ -109,10 +119,12 @@
       "Taxa de juros anual do contrato, em fração: digite 0,1002 para 10,02% a.a. É dividida por 12 (proporcionalidade simples) para obter a taxa mensal aplicada em todos os meses.",
     taxaEfetiva:
       "Taxa efetiva anual que aparece no contrato, em fração como a nominal: 0,1049 para 10,49% a.a. Serve apenas para conferência — ela deve ficar próxima de (1 + nominal ÷ 12)¹² − 1. Não entra em nenhum cálculo da simulação.",
-    cenarioTr:
-      "A TR corrige o saldo devedor todo mês. Como ninguém sabe a TR futura, você escolhe um cenário anual constante, convertido para taxa mensal por juros compostos. TR e juros nunca são somados numa taxa só: aparecem em colunas separadas na tabela mensal.",
-    trPersonalizada:
-      "TR anual em fração: 0,02 para 2% a.a. Use 0 para simular sem nenhuma correção monetária do saldo.",
+    indexador:
+      "Índice que corrige o saldo devedor todo mês. TR é o padrão do SFH; poupança é uma alternativa de mercado usada em alguns contratos. O simulador trata os dois do mesmo jeito: um cenário de taxa anual constante, convertido para taxa mensal por juros compostos — não reproduz a regra oficial da poupança (que muda com a Selic), apenas aproxima seu efeito.",
+    cenarioIndexador:
+      "O indexador escolhido corrige o saldo devedor todo mês. Como ninguém sabe a taxa futura, você escolhe um cenário anual constante, convertido para taxa mensal por juros compostos. Indexador e juros nunca são somados numa taxa só: aparecem em colunas separadas na tabela mensal.",
+    indexadorPersonalizado:
+      "Taxa anual do indexador em fração: 0,02 para 2% a.a. Use 0 para simular sem nenhuma correção monetária do saldo.",
     segurosTarifas:
       "Valor fixo somado a toda prestação (seguros MIP e DFI, tarifa de administração). Entra na prestação total e no limite de prestação, mas nunca abate o saldo nem rende juros.",
     limiteSaldo:
@@ -212,7 +224,7 @@
 </section>
 
 <section class="secao">
-  <h3>Taxas e TR</h3>
+  <h3>Taxas e indexador</h3>
   <div class="grade">
     <label>
       <span class="rotulo-linha">
@@ -240,8 +252,19 @@
     </label>
     <label>
       <span class="rotulo-linha">
-        Cenário de TR
-        <Ajuda rotulo="o cenário de TR" texto={textos.cenarioTr} />
+        Indexador
+        <Ajuda rotulo="o indexador" texto={textos.indexador} />
+      </span>
+      <select bind:value={contrato.indexador}>
+        {#each indexadores as i}
+          <option value={i.valor}>{i.rotulo}</option>
+        {/each}
+      </select>
+    </label>
+    <label>
+      <span class="rotulo-linha">
+        Cenário de {ROTULO_INDEXADOR[contrato.indexador]}
+        <Ajuda rotulo="o cenário do indexador" texto={textos.cenarioIndexador} />
       </span>
       <select bind:value={cenarioNome}>
         {#each cenarios as c}
@@ -252,14 +275,14 @@
     {#if cenarioNome === "Personalizada"}
       <label>
         <span class="rotulo-linha">
-          TR anual personalizada (fração)
-          <Ajuda rotulo="a TR personalizada" texto={textos.trPersonalizada} />
+          {ROTULO_INDEXADOR[contrato.indexador]} anual personalizada (fração)
+          <Ajuda rotulo="a taxa personalizada" texto={textos.indexadorPersonalizado} />
         </span>
         <input
           type="number"
           step="0.0001"
-          bind:value={taxaTrPersonalizada}
-          class:invalido={trPersonalizadaFaltando}
+          bind:value={taxaIndexadorPersonalizada}
+          class:invalido={indexadorPersonalizadaFaltando}
         />
       </label>
     {/if}

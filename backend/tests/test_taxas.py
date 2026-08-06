@@ -1,7 +1,10 @@
 """Testes das conversões de taxas anuais para mensais."""
 from decimal import Decimal
 
+from homepilot.core.modelos import Indexador
 from homepilot.core.taxas import (
+    CENARIOS_PADRAO_POR_INDEXADOR,
+    CENARIOS_POUPANCA_PADRAO,
     CENARIOS_TR_PADRAO,
     taxa_anual_para_mensal_equivalente,
     taxa_nominal_anual_para_mensal,
@@ -34,3 +37,13 @@ def test_taxa_anual_zero_resulta_em_taxa_mensal_zero():
 def test_cenarios_tr_padrao_contem_os_quatro_cenarios_iniciais():
     taxas = {taxa for _, taxa in CENARIOS_TR_PADRAO}
     assert taxas == {Decimal("0.0"), Decimal("0.015"), Decimal("0.02"), Decimal("0.025")}
+
+
+def test_cenarios_poupanca_padrao_contem_os_quatro_cenarios_iniciais():
+    taxas = {taxa for _, taxa in CENARIOS_POUPANCA_PADRAO}
+    assert taxas == {Decimal("0.05"), Decimal("0.06"), Decimal("0.07"), Decimal("0.08")}
+
+
+def test_cenarios_padrao_por_indexador_cobre_tr_e_poupanca():
+    assert CENARIOS_PADRAO_POR_INDEXADOR[Indexador.TR] == CENARIOS_TR_PADRAO
+    assert CENARIOS_PADRAO_POR_INDEXADOR[Indexador.POUPANCA] == CENARIOS_POUPANCA_PADRAO

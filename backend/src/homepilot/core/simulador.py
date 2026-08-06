@@ -3,7 +3,7 @@
 Implementa a convenção descrita na seção 6 do README do projeto:
 
 1. Obter o saldo inicial do mês.
-2. Aplicar a correção monetária pela TR.
+2. Aplicar a correção monetária pelo indexador (TR, poupança etc.).
 3. Calcular os juros do período sobre o saldo já corrigido.
 4. Calcular a prestação financeira e a amortização ordinária pelo sistema de
    amortização do contrato (Tabela Price ou SAC), recalculadas a cada mês com
@@ -25,10 +25,11 @@ recalcular o prazo no passo 7:
   prestação é a soma (amortização + juros). Amortização constante, prestação
   decrescente.
 
-Importante: recalcular esses valores todo mês com base no saldo corrigido pela
-TR (em vez de mantê-los fixos do início ao fim) é o que permite que a prestação
-acompanhe a evolução da TR ao longo do contrato, como ocorre na prática em
-financiamentos SFH indexados à TR. Como consequência natural dessa recorrência,
+Importante: recalcular esses valores todo mês com base no saldo corrigido pelo
+indexador (em vez de mantê-los fixos do início ao fim) é o que permite que a
+prestação acompanhe a evolução do indexador ao longo do contrato, como ocorre
+na prática em financiamentos SFH indexados à TR ou à poupança. Como
+consequência natural dessa recorrência,
 quando resta exatamente 1 mês de prazo ambos os sistemas devolvem
 automaticamente o valor exato para zerar o saldo (na Price, saldo + juros; no
 SAC, saldo / 1 + juros), o que resolve o ajuste da última parcela sem
@@ -46,7 +47,7 @@ from homepilot.core.excecoes import ErroSimulacaoInvalida
 from homepilot.core.modelos import (
     AmortizacaoExtraordinaria,
     AporteRecorrente,
-    CenarioTR,
+    CenarioIndexador,
     DadosContrato,
     EstrategiaAmortizacao,
     ParcelaMensal,
@@ -248,16 +249,16 @@ def validar_aportes_recorrentes(contrato: DadosContrato, recorrentes: list[Aport
                 raise ErroSimulacaoInvalida(f"O mês final d{qual} é anterior ao seu mês inicial.")
 
 
-def validar_taxa_tr(taxa_anual: Decimal) -> None:
+def validar_taxa_indexador(taxa_anual: Decimal) -> None:
     if taxa_anual < 0:
-        raise ErroSimulacaoInvalida("A taxa da TR não pode ser negativa.")
+        raise ErroSimulacaoInvalida("A taxa do indexador não pode ser negativa.")
     if taxa_anual > LIMITE_TAXA_ANUAL_RAZOAVEL:
-        raise ErroSimulacaoInvalida("A taxa da TR informada está fora de uma faixa razoável.")
+        raise ErroSimulacaoInvalida("A taxa do indexador informada está fora de uma faixa razoável.")
 
 
 def simular(
     contrato: DadosContrato,
-    cenario_tr: CenarioTR,
+    cenario_indexador: CenarioIndexador,
     amortizacoes: list[AmortizacaoExtraordinaria] | None = None,
     aportes_recorrentes: list[AporteRecorrente] | None = None,
 ) -> ResultadoSimulacao:
@@ -274,10 +275,10 @@ def simular(
     validar_contrato(contrato)
     validar_amortizacoes(contrato, amortizacoes_ordenadas)
     validar_aportes_recorrentes(contrato, recorrentes)
-    validar_taxa_tr(cenario_tr.taxa_anual)
+    validar_taxa_indexador(cenario_indexador.taxa_anual)
 
     taxa_mensal_juros = taxa_nominal_anual_para_mensal(contrato.taxa_nominal_anual)
-    taxa_mensal_tr = taxa_anual_para_mensal_equivalente(cenario_tr.taxa_anual)
+    taxa_mensal_indexador = taxa_anual_para_mensal_equivalente(cenario_indexador.taxa_anual)
 
     saldo = contrato.saldo_devedor
     prazo_restante = contrato.prazo_restante
@@ -306,8 +307,8 @@ def simular(
         competencia = _somar_meses(contrato.data_base, numero_mes)
 
         saldo_inicial = saldo
-        correcao_tr = _arredondar(saldo_inicial * taxa_mensal_tr)
-        saldo_corrigido = saldo_inicial + correcao_tr
+        correcao_indexador = _arredondar(saldo_inicial * taxa_mensal_indexador)
+        saldo_corrigido = saldo_inicial + correcao_indexador
         juros = _arredondar(saldo_corrigido * taxa_mensal_juros)
 
         prestacao_financeira, amortizacao_ordinaria = _calcular_prestacao_e_amortizacao(
@@ -359,7 +360,7 @@ def simular(
                 numero_mes=numero_mes,
                 competencia=competencia,
                 saldo_inicial=_arredondar(saldo_inicial),
-                correcao_tr=correcao_tr,
+                correcao_indexador=correcao_indexador,
                 saldo_corrigido=_arredondar(saldo_corrigido),
                 juros=juros,
                 prestacao_financeira=prestacao_financeira,

@@ -22,6 +22,7 @@ class Indexador(str, Enum):
     """Índice de correção monetária aplicado ao saldo devedor."""
 
     TR = "tr"
+    POUPANCA = "poupanca"
 
 
 class EstrategiaAmortizacao(str, Enum):
@@ -84,8 +85,8 @@ class AporteRecorrente:
 
 
 @dataclass
-class CenarioTR:
-    """Um cenário de TR anual a ser simulado."""
+class CenarioIndexador:
+    """Um cenário de taxa anual do indexador (TR, poupança etc.) a ser simulado."""
 
     nome: str
     taxa_anual: Decimal
@@ -98,7 +99,7 @@ class ParcelaMensal:
     numero_mes: int
     competencia: date
     saldo_inicial: Decimal
-    correcao_tr: Decimal
+    correcao_indexador: Decimal
     saldo_corrigido: Decimal
     juros: Decimal
     prestacao_financeira: Decimal
@@ -124,7 +125,7 @@ class ResumoSimulacao:
     meses_ate_quitacao: int
     meses_antecipados: int
     total_juros: Decimal
-    total_correcao_tr: Decimal
+    total_correcao_indexador: Decimal
     total_seguros_tarifas: Decimal
     total_amortizado_extraordinario: Decimal
     soma_prestacoes: Decimal

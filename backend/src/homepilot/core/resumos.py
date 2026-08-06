@@ -18,7 +18,7 @@ def montar_resumo(contrato: DadosContrato, parcelas: list[ParcelaMensal]) -> Res
     maior_saldo_devedor = max(p.saldo_final for p in parcelas)
     maior_prestacao_total = max(p.prestacao_total for p in parcelas)
     total_juros = sum((p.juros for p in parcelas), ZERO)
-    total_correcao_tr = sum((p.correcao_tr for p in parcelas), ZERO)
+    total_correcao_indexador = sum((p.correcao_indexador for p in parcelas), ZERO)
     total_seguros_tarifas = sum((p.seguros_tarifas for p in parcelas), ZERO)
     total_amortizado_extraordinario = sum((p.amortizacao_extraordinaria for p in parcelas), ZERO)
     soma_prestacoes = sum((p.prestacao_total for p in parcelas), ZERO)
@@ -37,7 +37,7 @@ def montar_resumo(contrato: DadosContrato, parcelas: list[ParcelaMensal]) -> Res
         meses_ate_quitacao=meses_ate_quitacao,
         meses_antecipados=meses_antecipados,
         total_juros=total_juros,
-        total_correcao_tr=total_correcao_tr,
+        total_correcao_indexador=total_correcao_indexador,
         total_seguros_tarifas=total_seguros_tarifas,
         total_amortizado_extraordinario=total_amortizado_extraordinario,
         soma_prestacoes=soma_prestacoes,

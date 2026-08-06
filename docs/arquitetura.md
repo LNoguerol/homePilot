@@ -45,13 +45,13 @@ Erros de regra de negócio (saldo inválido, prazo ≤ 0, taxa negativa, presta�
 
 ### Fluxo de uma simulação
 
-1. `POST /api/simulations` recebe `ContratoEntrada` + `CenarioTREntrada` + lista de `AmortizacaoEntrada` (Pydantic).
-2. `esquemas/simulacao.py` converte para `DadosContrato`, `CenarioTR`, `list[AmortizacaoExtraordinaria]` (dataclasses).
+1. `POST /api/simulations` recebe `ContratoEntrada` + `CenarioIndexadorEntrada` + lista de `AmortizacaoEntrada` (Pydantic).
+2. `esquemas/simulacao.py` converte para `DadosContrato`, `CenarioIndexador`, `list[AmortizacaoExtraordinaria]` (dataclasses).
 3. `core/simulador.simular(...)` valida o contrato e roda o laço mensal descrito no README (seção 4.6), produzindo uma lista de `ParcelaMensal`.
-4. `core/resumos.montar_resumo(...)` agrega os indicadores (`ResumoSimulacao`): maior saldo, maior prestação, totais de juros/TR/seguros, mês de quitação, alertas de limite.
+4. `core/resumos.montar_resumo(...)` agrega os indicadores (`ResumoSimulacao`): maior saldo, maior prestação, totais de juros/indexador/seguros, mês de quitação, alertas de limite.
 5. `esquemas/simulacao.py` converte `ResultadoSimulacao` de volta para `SimulacaoSaida` (Pydantic) e a API devolve JSON.
 
-`POST /api/simulations/compare` repete esse fluxo para os quatro cenários de TR padrão (`CENARIOS_TR_PADRAO` em `core/taxas.py`), reaproveitando o mesmo contrato e amortizações, e devolve só os resumos de cada cenário.
+`POST /api/simulations/compare` repete esse fluxo para os quatro cenários padrão do indexador escolhido (`CENARIOS_PADRAO_POR_INDEXADOR` em `core/taxas.py`), reaproveitando o mesmo contrato e amortizações, e devolve só os resumos de cada cenário.
 
 ## Frontend
 

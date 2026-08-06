@@ -7,13 +7,13 @@
 
   const textos = {
     maiorSaldo:
-      "O maior saldo devedor alcançado em todo o cronograma. Na Price com TR ele pode ficar acima do saldo de hoje nos primeiros anos, porque a correção monetária supera a amortização — no SAC isso não acontece.",
+      "O maior saldo devedor alcançado em todo o cronograma. Na Price ele pode ficar acima do saldo de hoje nos primeiros anos, porque a correção pelo indexador supera a amortização — no SAC isso não acontece.",
     maiorPrestacao:
-      "A maior prestação total (já com seguros e tarifas) de todo o cronograma: o pior mês para o seu orçamento. Na Price com TR ela tende a ser no fim do contrato; no SAC, no começo.",
+      "A maior prestação total (já com seguros e tarifas) de todo o cronograma: o pior mês para o seu orçamento. Na Price ela tende a ser no fim do contrato; no SAC, no começo.",
     quitacao:
       "Mês em que o saldo chega a zero, com o total de meses simulados e quantos foram antecipados em relação ao prazo restante que você informou no contrato.",
     juros:
-      "Soma apenas dos juros de todos os meses. Não inclui a correção pela TR nem seguros e tarifas — essas colunas aparecem separadas na tabela mensal.",
+      "Soma apenas dos juros de todos os meses. Não inclui a correção pelo indexador nem seguros e tarifas — essas colunas aparecem separadas na tabela mensal.",
     aportes:
       "Total efetivamente abatido do saldo pelos aportes extraordinários. É o valor aportado, não a economia de juros que ele gerou — para medir a economia, compare os juros totais desta simulação com uma simulação sem aportes.",
     limites:

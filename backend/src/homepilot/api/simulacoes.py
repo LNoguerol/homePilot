@@ -22,7 +22,7 @@ roteador = APIRouter(prefix="/api", tags=["simulações"])
 @roteador.post("/simulations", response_model=SimulacaoSaida)
 async def criar_simulacao(entrada: SimulacaoEntrada) -> SimulacaoSaida:
     contrato = contrato_para_dominio(entrada.contrato)
-    cenario = cenario_para_dominio(entrada.cenario_tr)
+    cenario = cenario_para_dominio(entrada.cenario_indexador)
     amortizacoes = [amortizacao_para_dominio(a) for a in entrada.amortizacoes]
     recorrentes = [aporte_recorrente_para_dominio(r) for r in entrada.aportes_recorrentes]
 

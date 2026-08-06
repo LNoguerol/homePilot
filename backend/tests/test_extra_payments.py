@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from homepilot.core.modelos import (
     AmortizacaoExtraordinaria,
-    CenarioTR,
+    CenarioIndexador,
     DadosContrato,
     EstrategiaAmortizacao,
     Indexador,
@@ -12,7 +12,7 @@ from homepilot.core.modelos import (
 )
 from homepilot.core.simulador import simular
 
-CENARIO_TR = CenarioTR("TR 1,5% a.a.", Decimal("0.015"))
+CENARIO_TR = CenarioIndexador("TR 1,5% a.a.", Decimal("0.015"))
 
 
 def contrato_padrao(**sobrescritas) -> DadosContrato:

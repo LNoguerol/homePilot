@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from homepilot.core.modelos import (
     AmortizacaoExtraordinaria,
     AporteRecorrente,
-    CenarioTR,
+    CenarioIndexador,
     DadosContrato,
     EstrategiaAmortizacao,
     Indexador,
@@ -22,13 +22,14 @@ from homepilot.core.modelos import (
 
 EstrategiaLiteral = Literal["reducao_prazo", "reducao_prestacao"]
 SistemaAmortizacaoLiteral = Literal["price", "sac"]
+IndexadorLiteral = Literal["tr", "poupanca"]
 
 
 class ContratoEntrada(BaseModel):
     data_base: date
     saldo_devedor: Decimal
     sistema_amortizacao: SistemaAmortizacaoLiteral = "price"
-    indexador: Literal["tr"] = "tr"
+    indexador: IndexadorLiteral = "tr"
     taxa_nominal_anual: Decimal
     taxa_efetiva_informada: Decimal
     prazo_original: int
@@ -60,14 +61,14 @@ class AporteRecorrenteEntrada(BaseModel):
     estrategia: EstrategiaLiteral = "reducao_prazo"
 
 
-class CenarioTREntrada(BaseModel):
+class CenarioIndexadorEntrada(BaseModel):
     nome: str
     taxa_anual: Decimal
 
 
 class SimulacaoEntrada(BaseModel):
     contrato: ContratoEntrada
-    cenario_tr: CenarioTREntrada
+    cenario_indexador: CenarioIndexadorEntrada
     amortizacoes: list[AmortizacaoEntrada] = Field(default_factory=list)
     aportes_recorrentes: list[AporteRecorrenteEntrada] = Field(default_factory=list)
 
@@ -76,7 +77,7 @@ class ParcelaSaida(BaseModel):
     numero_mes: int
     competencia: date
     saldo_inicial: Decimal
-    correcao_tr: Decimal
+    correcao_indexador: Decimal
     saldo_corrigido: Decimal
     juros: Decimal
     prestacao_financeira: Decimal
@@ -99,7 +100,7 @@ class ResumoSaida(BaseModel):
     meses_ate_quitacao: int
     meses_antecipados: int
     total_juros: Decimal
-    total_correcao_tr: Decimal
+    total_correcao_indexador: Decimal
     total_seguros_tarifas: Decimal
     total_amortizado_extraordinario: Decimal
     soma_prestacoes: Decimal
@@ -116,7 +117,7 @@ class CompararEntrada(BaseModel):
     contrato: ContratoEntrada
     amortizacoes: list[AmortizacaoEntrada] = Field(default_factory=list)
     aportes_recorrentes: list[AporteRecorrenteEntrada] = Field(default_factory=list)
-    cenarios: list[CenarioTREntrada]
+    cenarios: list[CenarioIndexadorEntrada]
 
 
 class ResumoCenario(BaseModel):
@@ -163,8 +164,8 @@ def aporte_recorrente_para_dominio(entrada: AporteRecorrenteEntrada) -> AporteRe
     )
 
 
-def cenario_para_dominio(entrada: CenarioTREntrada) -> CenarioTR:
-    return CenarioTR(nome=entrada.nome, taxa_anual=entrada.taxa_anual)
+def cenario_para_dominio(entrada: CenarioIndexadorEntrada) -> CenarioIndexador:
+    return CenarioIndexador(nome=entrada.nome, taxa_anual=entrada.taxa_anual)
 
 
 def parcela_para_saida(parcela: ParcelaMensal) -> ParcelaSaida:
@@ -172,7 +173,7 @@ def parcela_para_saida(parcela: ParcelaMensal) -> ParcelaSaida:
         numero_mes=parcela.numero_mes,
         competencia=parcela.competencia,
         saldo_inicial=parcela.saldo_inicial,
-        correcao_tr=parcela.correcao_tr,
+        correcao_indexador=parcela.correcao_indexador,
         saldo_corrigido=parcela.saldo_corrigido,
         juros=parcela.juros,
         prestacao_financeira=parcela.prestacao_financeira,
