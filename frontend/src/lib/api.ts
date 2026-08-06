@@ -1,7 +1,7 @@
 import type {
   AmortizacaoExtraordinaria,
   AporteRecorrente,
-  CenarioTR,
+  CenarioIndexador,
   CompararSaida,
   ContratoExtraido,
   DadosContrato,
@@ -28,7 +28,7 @@ async function tratarResposta<T>(resposta: Response, mensagemPadrao = "Erro desc
 
 export async function simular(
   contrato: DadosContrato,
-  cenarioTr: CenarioTR,
+  cenarioIndexador: CenarioIndexador,
   amortizacoes: AmortizacaoExtraordinaria[],
   aportesRecorrentes: AporteRecorrente[],
 ): Promise<SimulacaoSaida> {
@@ -37,7 +37,7 @@ export async function simular(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contrato,
-      cenario_tr: cenarioTr,
+      cenario_indexador: cenarioIndexador,
       amortizacoes,
       aportes_recorrentes: aportesRecorrentes,
     }),
@@ -48,7 +48,7 @@ export async function simular(
 export async function compararCenarios(
   contrato: DadosContrato,
   amortizacoes: AmortizacaoExtraordinaria[],
-  cenarios: CenarioTR[],
+  cenarios: CenarioIndexador[],
   aportesRecorrentes: AporteRecorrente[],
 ): Promise<CompararSaida> {
   const resposta = await fetch(`${BASE_URL}/simulations/compare`, {

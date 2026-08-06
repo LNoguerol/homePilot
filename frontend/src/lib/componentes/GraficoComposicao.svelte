@@ -35,7 +35,12 @@
             borderColor: "#1f6b4e",
             fill: false,
           },
-          { label: "Correção TR acumulada", data: acumular("correcao_tr"), borderColor: "#8a4fd6", fill: false },
+          {
+            label: "Correção do indexador acumulada",
+            data: acumular("correcao_indexador"),
+            borderColor: "#8a4fd6",
+            fill: false,
+          },
           {
             label: "Seguros e tarifas acumulados",
             data: acumular("seguros_tarifas"),

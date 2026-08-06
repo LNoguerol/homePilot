@@ -18,9 +18,13 @@ Proporcionalidade simples. A taxa **efetiva** informada no contrato (`taxa_efeti
 taxa_mensal = (1 + taxa_anual)^(1/12) - 1
 ```
 
-Juros compostos, usando `Decimal.ln()`/potência fracionária nativa (precisão padrão de 28 dígitos). Usada para a TR e preparada para outros indexadores que sigam a mesma convenção. Se `taxa_anual == 0`, retorna `0` diretamente (evita o caminho de potenciação desnecessário).
+Juros compostos, usando `Decimal.ln()`/potência fracionária nativa (precisão padrão de 28 dígitos). Usada para a TR, a poupança e qualquer outro indexador que siga a mesma convenção — o motor não ramifica por tipo de indexador; `contrato.indexador` (enum `Indexador`, hoje `TR` ou `POUPANCA`) é só um rótulo repassado ao cronograma, quem entra na fórmula é a taxa anual do `CenarioIndexador` escolhido. Se `taxa_anual == 0`, retorna `0` diretamente (evita o caminho de potenciação desnecessário).
 
-Cenários padrão de TR (`taxas.CENARIOS_TR_PADRAO`): 0,0% / 1,5% / 2,0% / 2,5% a.a.
+Cenários padrão por indexador (`taxas.CENARIOS_PADRAO_POR_INDEXADOR`):
+- TR (`CENARIOS_TR_PADRAO`): 0,0% / 1,5% / 2,0% / 2,5% a.a.
+- Poupança (`CENARIOS_POUPANCA_PADRAO`): 5,0% / 6,0% / 7,0% / 8,0% a.a.
+
+A poupança aqui é uma **aproximação por taxa anual constante**, igual à convenção da TR — não implementa a regra oficial do Banco Central (rendimento mensal de referência TR + 0,5% a.m. quando a Selic meta é maior que 8,5% a.a., ou TR + 70% da Selic meta caso contrário), que depende da Selic vigente mês a mês e é um "gatilho" condicional, não uma taxa anual fixa. Modelar essa regra exigiria um input de Selic e uma lógica de cálculo mensal condicional, fora do escopo desta versão.
 
 ## 2. Tabela Price
 
@@ -49,13 +53,13 @@ O resultado contínuo é arredondado para cima (`ROUND_CEILING`) para um inteiro
 
 ## 2-A. SAC — Sistema de Amortização Constante
 
-Selecionável em `contrato.sistema_amortizacao` (`"price"` — padrão — ou `"sac"`). A diferença entre os dois sistemas está inteiramente concentrada em **duas** decisões: como a dupla (prestação, amortização) é calculada no mês, e qual grandeza é preservada na redução de prazo. Todo o resto do laço mensal (correção pela TR, juros, alertas, limites, resumo) é idêntico.
+Selecionável em `contrato.sistema_amortizacao` (`"price"` — padrão — ou `"sac"`). A diferença entre os dois sistemas está inteiramente concentrada em **duas** decisões: como a dupla (prestação, amortização) é calculada no mês, e qual grandeza é preservada na redução de prazo. Todo o resto do laço mensal (correção pelo indexador, juros, alertas, limites, resumo) é idêntico.
 
 | | Price | SAC |
 |---|---|---|
 | Grandeza calculada | prestação | amortização |
 | Grandeza derivada | amortização = prestação - juros | prestação = amortização + juros |
-| Perfil da prestação | ~constante (cresce com a TR) | decrescente |
+| Perfil da prestação | ~constante (cresce com o indexador) | decrescente |
 | Perfil da amortização | crescente | ~constante |
 | Total de juros | maior | menor |
 | Preservado na redução de prazo | prestação financeira | amortização mensal |
@@ -68,7 +72,7 @@ A = PV / n
 
 Não depende da taxa de juros — no SAC os juros entram apenas na composição da prestação. Se `prazo_meses <= 0`: levanta `ValueError` puro (mesma convenção da Price).
 
-Como esta fórmula é reaplicada a cada mês sobre o **saldo corrigido** e o prazo restante vigentes, a amortização é constante *entre eventos*: ela se reajusta quando a TR corrige o saldo (subindo levemente) ou quando uma amortização extraordinária altera saldo/prazo. Com TR = 0% a.a. ela é literalmente constante, a menos de um centavo de resíduo de divisão redistribuído mês a mês.
+Como esta fórmula é reaplicada a cada mês sobre o **saldo corrigido** e o prazo restante vigentes, a amortização é constante *entre eventos*: ela se reajusta quando o indexador corrige o saldo (subindo levemente) ou quando uma amortização extraordinária altera saldo/prazo. Com taxa do indexador = 0% a.a. ela é literalmente constante, a menos de um centavo de resíduo de divisão redistribuído mês a mês.
 
 ### 2-A.2 Prazo para quitar (`tabela_sac.calcular_prazo_para_quitar`)
 
@@ -87,8 +91,8 @@ Se o saldo for pequeno demais em relação ao prazo para render um centavo por m
 Ordem exata das operações em cada mês (implementa README §4.7):
 
 1. `saldo_inicial` = saldo do mês anterior (ou saldo do contrato, no mês 1).
-2. `correcao_tr = arredondar(saldo_inicial * taxa_mensal_tr)`.
-3. `saldo_corrigido = saldo_inicial + correcao_tr`.
+2. `correcao_indexador = arredondar(saldo_inicial * taxa_mensal_indexador)`.
+3. `saldo_corrigido = saldo_inicial + correcao_indexador`.
 4. `juros = arredondar(saldo_corrigido * taxa_mensal_juros)`.
 5. `prestacao_financeira` e `amortizacao_ordinaria` pelo sistema do contrato (`_calcular_prestacao_e_amortizacao`, ver §2 e §2-A) — recalculadas todo mês, nunca fixadas:
    - **Price**: `prestacao = arredondar(calcular_prestacao(saldo_corrigido, taxa_mensal_juros, prazo_restante))` e `amortizacao = prestacao - juros`.
@@ -106,7 +110,7 @@ Ordem exata das operações em cada mês (implementa README §4.7):
 
 ### Arredondamento
 
-Todo valor monetário é arredondado a centavos (`ROUND_HALF_UP`) a cada etapa intermediária, nunca só no final — isso inclui `correcao_tr`, `saldo_corrigido`, `juros`, `prestacao_financeira`, `amortizacao_ordinaria`, `amortizacao_extraordinaria`, `seguros_tarifas`, `prestacao_total` e `saldo_final`.
+Todo valor monetário é arredondado a centavos (`ROUND_HALF_UP`) a cada etapa intermediária, nunca só no final — isso inclui `correcao_indexador`, `saldo_corrigido`, `juros`, `prestacao_financeira`, `amortizacao_ordinaria`, `amortizacao_extraordinaria`, `seguros_tarifas`, `prestacao_total` e `saldo_final`.
 
 ## 4. Amortização extraordinária
 
@@ -179,7 +183,7 @@ Se `saldo_apos_extra <= 0` após o evento: `prazo_restante` é forçado para `1`
 - `valor <= 0` → inválido.
 - `data < data_base do contrato` → inválido (não pode haver aporte antes do início da simulação).
 
-### 5.3 TR (`validar_taxa_tr`)
+### 5.3 Indexador (`validar_taxa_indexador`)
 
 - `taxa_anual < 0` → inválido.
 - `taxa_anual > 1` (100% a.a.) → fora de faixa razoável.
@@ -204,11 +208,11 @@ Calculado a partir do cronograma já pronto (`list[ParcelaMensal]`), sem reproce
 
 - `maior_saldo_devedor` = `max(saldo_final)` de todas as parcelas.
 - `maior_prestacao_total` = `max(prestacao_total)`.
-- `total_juros`, `total_correcao_tr`, `total_seguros_tarifas`, `total_amortizado_extraordinario`, `soma_prestacoes` = somas simples das colunas correspondentes.
+- `total_juros`, `total_correcao_indexador`, `total_seguros_tarifas`, `total_amortizado_extraordinario`, `soma_prestacoes` = somas simples das colunas correspondentes.
 - `meses_ate_quitacao` = número da última parcela.
 - `meses_antecipados = max(0, prazo_restante_do_contrato - meses_ate_quitacao)`.
 - `status_limite_saldo` / `status_limite_prestacao` = `"Ultrapassado"` se **qualquer** parcela tiver `alerta_saldo`/`alerta_prestacao` verdadeiro, senão `"Dentro do limite"`.
 
 ## 7. O que este motor deliberadamente não faz
 
-Ver README §5 para a lista completa de limitações frente a um extrato bancário real (ordem operacional do banco, TR mensal real do BC em vez de cenário anual constante, política real de seguros/tarifas, regras legais de FGTS). Aqui, adicionalmente: o motor não soma TR e juros em uma única taxa composta (ficam sempre em colunas separadas), e a recorrência é sempre de valor fixo — um aporte que cresce a cada ano (por reajuste salarial, por exemplo) tem de ser cadastrado como uma recorrência por patamar.
+Ver README §5 para a lista completa de limitações frente a um extrato bancário real (ordem operacional do banco, índice mensal real do BC em vez de cenário anual constante — inclusive a regra oficial do "gatilho" da Selic para a poupança —, política real de seguros/tarifas, regras legais de FGTS). Aqui, adicionalmente: o motor não soma o indexador e os juros em uma única taxa composta (ficam sempre em colunas separadas), e a recorrência é sempre de valor fixo — um aporte que cresce a cada ano (por reajuste salarial, por exemplo) tem de ser cadastrado como uma recorrência por patamar.

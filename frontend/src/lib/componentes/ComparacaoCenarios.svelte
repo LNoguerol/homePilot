@@ -9,7 +9,7 @@
 
 <section class="secao">
   <div class="cabecalho">
-    <h3>Comparação de cenários de TR</h3>
+    <h3>Comparação de cenários do indexador</h3>
     <button class="secundario" on:click={aoComparar} disabled={executando}>
       {executando ? "Comparando..." : "Comparar cenários"}
     </button>
@@ -25,7 +25,7 @@
             <th>Maior saldo</th>
             <th>Maior prestação</th>
             <th>Juros totais</th>
-            <th>Total da TR</th>
+            <th>Total do indexador</th>
             <th>Limite de saldo</th>
             <th>Limite de prestação</th>
           </tr>
@@ -38,7 +38,7 @@
               <td>{formatarMoeda(r.resumo.maior_saldo_devedor)}</td>
               <td>{formatarMoeda(r.resumo.maior_prestacao_total)}</td>
               <td>{formatarMoeda(r.resumo.total_juros)}</td>
-              <td>{formatarMoeda(r.resumo.total_correcao_tr)}</td>
+              <td>{formatarMoeda(r.resumo.total_correcao_indexador)}</td>
               <td class:ok={r.resumo.status_limite_saldo === "Dentro do limite"}>{r.resumo.status_limite_saldo}</td>
               <td class:ok={r.resumo.status_limite_prestacao === "Dentro do limite"}>{r.resumo.status_limite_prestacao}</td>
             </tr>

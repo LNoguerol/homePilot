@@ -6,7 +6,7 @@ import pytest
 
 from homepilot.core.excecoes import ErroSimulacaoInvalida
 from homepilot.core.modelos import (
-    CenarioTR,
+    CenarioIndexador,
     DadosContrato,
     Indexador,
     SistemaAmortizacao,
@@ -33,12 +33,12 @@ def contrato_padrao(**sobrescritas) -> DadosContrato:
 
 
 def test_saldo_nunca_fica_negativo():
-    resultado = simular(contrato_padrao(), CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    resultado = simular(contrato_padrao(), CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
     assert all(p.saldo_final >= 0 for p in resultado.parcelas)
 
 
 def test_ajuste_da_ultima_parcela_zera_o_saldo_exatamente():
-    resultado = simular(contrato_padrao(), CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    resultado = simular(contrato_padrao(), CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
     ultima = resultado.parcelas[-1]
     assert ultima.saldo_final == Decimal("0.00")
     assert ultima.prazo_restante == 0
@@ -46,7 +46,7 @@ def test_ajuste_da_ultima_parcela_zera_o_saldo_exatamente():
 
 def test_alerta_de_saldo_dispara_ao_ultrapassar_o_limite():
     contrato = contrato_padrao(limite_saldo=Decimal("1000.00"))
-    resultado = simular(contrato, CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    resultado = simular(contrato, CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
     assert any(p.alerta_saldo for p in resultado.parcelas)
     assert resultado.resumo.status_limite_saldo == "Ultrapassado"
 
@@ -59,14 +59,14 @@ def test_sem_alerta_de_saldo_quando_dentro_do_limite_configurado():
         prazo_restante=24,
         limite_saldo=Decimal("200000.00"),
     )
-    resultado = simular(contrato, CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    resultado = simular(contrato, CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
     assert not any(p.alerta_saldo for p in resultado.parcelas)
     assert resultado.resumo.status_limite_saldo == "Dentro do limite"
 
 
 def test_alerta_de_prestacao_dispara_ao_ultrapassar_o_limite():
     contrato = contrato_padrao(limite_prestacao=Decimal("500.00"))
-    resultado = simular(contrato, CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    resultado = simular(contrato, CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
     assert any(p.alerta_prestacao for p in resultado.parcelas)
     assert resultado.resumo.status_limite_prestacao == "Ultrapassado"
 
@@ -79,49 +79,61 @@ def test_sem_alerta_de_prestacao_quando_dentro_do_limite_configurado():
         prazo_restante=24,
         limite_prestacao=Decimal("5000.00"),
     )
-    resultado = simular(contrato, CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    resultado = simular(contrato, CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
     assert not any(p.alerta_prestacao for p in resultado.parcelas)
     assert resultado.resumo.status_limite_prestacao == "Dentro do limite"
 
 
 def test_comparacao_de_cenarios_de_tr_gera_resultados_diferentes():
     contrato = contrato_padrao()
-    resultado_0 = simular(contrato, CenarioTR("TR 0,0% a.a.", Decimal("0.0")))
-    resultado_2_5 = simular(contrato, CenarioTR("TR 2,5% a.a.", Decimal("0.025")))
+    resultado_0 = simular(contrato, CenarioIndexador("TR 0,0% a.a.", Decimal("0.0")))
+    resultado_2_5 = simular(contrato, CenarioIndexador("TR 2,5% a.a.", Decimal("0.025")))
 
-    assert resultado_0.resumo.total_correcao_tr == Decimal("0.00")
-    assert resultado_2_5.resumo.total_correcao_tr > resultado_0.resumo.total_correcao_tr
+    assert resultado_0.resumo.total_correcao_indexador == Decimal("0.00")
+    assert resultado_2_5.resumo.total_correcao_indexador > resultado_0.resumo.total_correcao_indexador
     assert resultado_2_5.resumo.maior_saldo_devedor > resultado_0.resumo.maior_saldo_devedor
+
+
+def test_indexador_poupanca_corrige_o_saldo_como_a_tr():
+    """O motor não ramifica por tipo de indexador: `Indexador.POUPANCA` usa a
+    mesma conversão por juros compostos aplicada à TR, apenas com outra taxa
+    anual de cenário."""
+    contrato = contrato_padrao(indexador=Indexador.POUPANCA)
+    resultado_0 = simular(contrato, CenarioIndexador("Poupança 5,0% a.a.", Decimal("0.05")))
+    resultado_8 = simular(contrato, CenarioIndexador("Poupança 8,0% a.a.", Decimal("0.08")))
+
+    assert resultado_0.resumo.total_correcao_indexador > Decimal("0.00")
+    assert resultado_8.resumo.total_correcao_indexador > resultado_0.resumo.total_correcao_indexador
 
 
 def test_saldo_invalido_levanta_erro():
     with pytest.raises(ErroSimulacaoInvalida):
-        simular(contrato_padrao(saldo_devedor=Decimal("0")), CenarioTR("TR", Decimal("0.015")))
+        simular(contrato_padrao(saldo_devedor=Decimal("0")), CenarioIndexador("TR", Decimal("0.015")))
 
 
 def test_prazo_menor_ou_igual_a_zero_levanta_erro():
     with pytest.raises(ErroSimulacaoInvalida):
-        simular(contrato_padrao(prazo_restante=0), CenarioTR("TR", Decimal("0.015")))
+        simular(contrato_padrao(prazo_restante=0), CenarioIndexador("TR", Decimal("0.015")))
 
 
 def test_taxa_negativa_levanta_erro():
     with pytest.raises(ErroSimulacaoInvalida):
-        simular(contrato_padrao(taxa_nominal_anual=Decimal("-0.01")), CenarioTR("TR", Decimal("0.015")))
+        simular(contrato_padrao(taxa_nominal_anual=Decimal("-0.01")), CenarioIndexador("TR", Decimal("0.015")))
 
 
 def test_taxa_tr_negativa_levanta_erro():
     with pytest.raises(ErroSimulacaoInvalida):
-        simular(contrato_padrao(), CenarioTR("TR negativa", Decimal("-0.01")))
+        simular(contrato_padrao(), CenarioIndexador("TR negativa", Decimal("-0.01")))
 
 
 def test_valores_fora_de_faixa_razoavel_levantam_erro():
     with pytest.raises(ErroSimulacaoInvalida):
-        simular(contrato_padrao(saldo_devedor=Decimal("999999999999")), CenarioTR("TR", Decimal("0.015")))
+        simular(contrato_padrao(saldo_devedor=Decimal("999999999999")), CenarioIndexador("TR", Decimal("0.015")))
 
 
 # --- SAC (Sistema de Amortização Constante) ---
 
-SEM_TR = CenarioTR("TR 0,0% a.a.", Decimal("0.0"))
+SEM_TR = CenarioIndexador("TR 0,0% a.a.", Decimal("0.0"))
 
 
 def contrato_sac(**sobrescritas) -> DadosContrato:
@@ -156,7 +168,7 @@ def test_sac_comeca_com_prestacao_maior_e_paga_menos_juros_que_a_price():
 
 
 def test_sac_zera_o_saldo_na_ultima_parcela():
-    resultado = simular(contrato_sac(), CenarioTR("TR 1,5% a.a.", Decimal("0.015")))
+    resultado = simular(contrato_sac(), CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
     ultima = resultado.parcelas[-1]
     assert ultima.saldo_final == Decimal("0.00")
     assert ultima.prazo_restante == 0

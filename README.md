@@ -1,12 +1,12 @@
 # HomePilot
 
-Simulação e planejamento de financiamentos imobiliários brasileiros (Tabela Price ou SAC + TR + amortizações extraordinárias).
+Simulação e planejamento de financiamentos imobiliários brasileiros (Tabela Price ou SAC + indexador (TR ou poupança) + amortizações extraordinárias).
 
 > **Aviso:** Este projeto é uma ferramenta educacional e de planejamento. Os resultados são estimativas e não substituem o demonstrativo oficial da instituição financeira, orientação jurídica, contábil ou financeira.
 
 ## 1. Objetivo
 
-Permitir simular um financiamento pela Tabela Price ou pelo SAC, com correção do saldo pela TR, aplicar amortizações extraordinárias (ex.: FGTS) por redução de prazo ou de prestação, e acompanhar se o saldo devedor e a prestação total respeitam limites configuráveis (padrão: R$ 350.000,00 e R$ 3.800,00).
+Permitir simular um financiamento pela Tabela Price ou pelo SAC, com correção do saldo por um indexador (TR ou poupança), aplicar amortizações extraordinárias (ex.: FGTS) por redução de prazo ou de prestação, e acompanhar se o saldo devedor e a prestação total respeitam limites configuráveis (padrão: R$ 350.000,00 e R$ 3.800,00).
 
 ## 2. Arquitetura
 
@@ -119,15 +119,17 @@ taxa_mensal_juros = taxa_nominal_anual / 12
 
 A taxa **efetiva** informada no contrato é apenas uma referência de conferência: ela corresponde ao efeito composto de 12 aplicações da taxa mensal nominal, `(1 + taxa_nominal_anual/12)^12 - 1`. Para o cenário inicial (10,02% a.a. nominal), esse cálculo dá ≈ 10,4932% a.a., que bate com os 10,49% informados no contrato — confirmando a convenção adotada. A taxa efetiva **não** é usada em nenhum cálculo mensal.
 
-### 4.2 TR (e demais indexadores)
+### 4.2 Indexador (TR, poupança e demais)
 
-Conversão por juros compostos, conforme pedido na especificação:
+O contrato pode ser corrigido por TR ou por poupança, escolhidas no campo "Indexador" do formulário. Conversão por juros compostos, conforme pedido na especificação:
 
 ```
-taxa_mensal_tr = (1 + taxa_anual)^(1/12) - 1
+taxa_mensal_indexador = (1 + taxa_anual)^(1/12) - 1
 ```
 
-TR e taxa de juros contratual **nunca são somadas em uma única taxa**: o cronograma mostra a correção pela TR e os juros como colunas separadas.
+Indexador e taxa de juros contratual **nunca são somadas em uma única taxa**: o cronograma mostra a correção pelo indexador e os juros como colunas separadas.
+
+A poupança é modelada como um cenário de taxa anual constante, na mesma convenção simplificada da TR — **não** implementa a regra oficial do Banco Central (rendimento mensal de TR + 0,5% a.m. quando a Selic meta é maior que 8,5% a.a., ou TR + 70% da Selic meta caso contrário), que depende da Selic vigente mês a mês. Ver `docs/regras-financeiras.md` para mais detalhes.
 
 ### 4.3 Tabela Price
 
@@ -137,7 +139,7 @@ PMT = PV × [i × (1+i)^n] / [(1+i)^n - 1]
 
 `PV` é o saldo corrigido do mês, `i` é `taxa_mensal_juros`, `n` é o prazo restante. Quando `i = 0`, `PMT = PV / n`.
 
-**Importante:** a prestação financeira é recalculada todo mês com base no saldo já corrigido pela TR e no prazo restante vigente (em vez de fixada uma única vez no início). É essa recorrência que faz a prestação acompanhar a evolução da TR ao longo do contrato — como ocorre na prática em financiamentos SFH indexados à TR — e, como consequência natural, quando resta exatamente 1 mês de prazo a própria fórmula devolve o valor exato para zerar o saldo (saldo corrigido + juros), resolvendo o ajuste da última parcela sem necessidade de um caso especial no código.
+**Importante:** a prestação financeira é recalculada todo mês com base no saldo já corrigido pelo indexador e no prazo restante vigente (em vez de fixada uma única vez no início). É essa recorrência que faz a prestação acompanhar a evolução do indexador ao longo do contrato — como ocorre na prática em financiamentos SFH indexados à TR ou à poupança — e, como consequência natural, quando resta exatamente 1 mês de prazo a própria fórmula devolve o valor exato para zerar o saldo (saldo corrigido + juros), resolvendo o ajuste da última parcela sem necessidade de um caso especial no código.
 
 ### 4.4 SAC (Sistema de Amortização Constante)
 
@@ -187,7 +189,7 @@ Mantém-se o prazo restante; reduz-se o saldo; a prestação financeira do mês 
 ### 4.7 Sequência mensal de cálculo
 
 1. Saldo inicial do mês.
-2. Correção monetária pela TR.
+2. Correção monetária pelo indexador.
 3. Saldo corrigido.
 4. Juros sobre o saldo corrigido.
 5. Prestação financeira e amortização ordinária pelo sistema do contrato (saldo corrigido e prazo restante vigentes): na Price calcula-se a prestação e a amortização é o resíduo; no SAC calcula-se a amortização e a prestação é a soma com os juros.
@@ -209,8 +211,8 @@ Esta é uma **convenção simplificada**, não uma reprodução do extrato ofici
 - a data de aniversário contratual (o HomePilot usa sempre o dia da data-base, com ajuste automático para meses mais curtos);
 - os critérios de arredondamento em cada etapa;
 - a política interna de seguros e tarifas (aqui tratados como valor fixo mensal);
-- o índice de TR real divulgado pelo Banco Central mês a mês (aqui, cenários de TR anual constante, convertidos para uma taxa mensal equivalente fixa — a estrutura já está preparada para futuramente aceitar uma série histórica mensal de TR);
-- o número de meses recalculado após uma amortização com redução de prazo assume taxa de juros constante e desconhece futuras correções de TR; a cada mês o prazo e a prestação são recalculados novamente com o saldo efetivamente atualizado.
+- o índice real (TR ou poupança) divulgado pelo Banco Central mês a mês (aqui, cenários de taxa anual constante, convertidos para uma taxa mensal equivalente fixa — a estrutura já está preparada para futuramente aceitar uma série histórica mensal); no caso da poupança, isso significa que a regra oficial do "gatilho" da Selic (TR + 0,5% a.m. ou TR + 70% da Selic meta, conforme ela esteja acima ou abaixo de 8,5% a.a.) não é reproduzida — o usuário aproxima o efeito escolhendo uma taxa anual constante;
+- o número de meses recalculado após uma amortização com redução de prazo assume taxa de juros constante e desconhece futuras correções do indexador; a cada mês o prazo e a prestação são recalculados novamente com o saldo efetivamente atualizado.
 - as regras de datas e periodicidade do FGTS são tratadas apenas como parâmetros configuráveis pelo usuário, não como regras legais permanentes.
 
 ## 6. Entendendo os campos na tela
@@ -223,7 +225,7 @@ O balão abre por clique (não por passar o mouse), para funcionar igual no celu
 
 ## 7. Como escolher o sistema de amortização
 
-Na seção "Dados do contrato" do formulário, o campo **Sistema de amortização** alterna entre **Price** (prestação constante, padrão) e **SAC** (amortização constante, prestação decrescente). Na interface os dois aparecem sem o prefixo "Tabela", para que as duas opções fiquem simétricas; nesta documentação "Tabela Price" continua sendo usado como termo formal. O botão **?** do campo explica a opção selecionada no momento. A escolha vale para a simulação e também para a comparação de cenários de TR — para comparar Price contra SAC, simule uma vez em cada sistema. Ver §4.3 e §4.4 para as fórmulas.
+Na seção "Dados do contrato" do formulário, o campo **Sistema de amortização** alterna entre **Price** (prestação constante, padrão) e **SAC** (amortização constante, prestação decrescente). Na interface os dois aparecem sem o prefixo "Tabela", para que as duas opções fiquem simétricas; nesta documentação "Tabela Price" continua sendo usado como termo formal. O botão **?** do campo explica a opção selecionada no momento. A escolha vale para a simulação e também para a comparação de cenários do indexador — para comparar Price contra SAC, simule uma vez em cada sistema. Ver §4.3 e §4.4 para as fórmulas.
 
 ## 8. Como cadastrar amortizações extraordinárias
 
@@ -241,7 +243,7 @@ Os dois blocos convivem: num mês em que mais de um aporte incide — recorrente
 
 ## 9. Como comparar cenários
 
-Na seção "Comparação de cenários de TR", o botão **Comparar cenários** executa simultaneamente os quatro cenários padrão (TR 0%, 1,5%, 2,0% e 2,5% a.a.) com os mesmos dados de contrato e amortizações, exibindo quitação estimada, maior saldo, maior prestação, juros totais, total de correção pela TR e se os limites foram respeitados em cada cenário.
+Na seção "Comparação de cenários do indexador", o botão **Comparar cenários** executa simultaneamente os quatro cenários padrão do indexador selecionado no formulário (TR: 0%, 1,5%, 2,0% e 2,5% a.a.; poupança: 5,0%, 6,0%, 7,0% e 8,0% a.a.) com os mesmos dados de contrato e amortizações, exibindo quitação estimada, maior saldo, maior prestação, juros totais, total de correção pelo indexador e se os limites foram respeitados em cada cenário.
 
 ## 10. Exportação de CSV
 
@@ -255,13 +257,13 @@ source .venv/bin/activate
 pytest -q
 ```
 
-88 testes cobrindo: cálculo da prestação Price e da amortização do SAC (ambos com um caso de cálculo manual verificável), conversão de taxa anual para mensal (nominal e TR), saldo nunca negativo, amortização extraordinária nos dois sistemas, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, perfil decrescente da prestação no SAC e seu menor custo total de juros, alertas de saldo e de prestação, aportes recorrentes (mensal, com fim definido, equivalência com os eventos de FGTS, vários em períodos distintos, vários sobrepostos, soma com aportes pontuais na mesma competência), comparação de cenários, validações da API e cadastro/login (ver [`docs/autenticacao.md`](docs/autenticacao.md)).
+103 testes cobrindo: cálculo da prestação Price e da amortização do SAC (ambos com um caso de cálculo manual verificável), conversão de taxa anual para mensal (nominal, TR e poupança), saldo nunca negativo, amortização extraordinária nos dois sistemas, redução de prazo, redução de prestação, quitação antecipada, ajuste da última parcela, perfil decrescente da prestação no SAC e seu menor custo total de juros, alertas de saldo e de prestação, aportes recorrentes (mensal, com fim definido, equivalência com os eventos de FGTS, vários em períodos distintos, vários sobrepostos, soma com aportes pontuais na mesma competência), o indexador poupança corrigindo o saldo com a mesma fórmula da TR, comparação de cenários, validações da API e cadastro/login (ver [`docs/autenticacao.md`](docs/autenticacao.md)).
 
 ## 12. Endpoints da API
 
 - `GET /api/health` → `{"status": "ok"}`
-- `POST /api/simulations` → recebe contrato, cenário de TR, amortizações pontuais e (opcional) `aportes_recorrentes`; devolve cronograma mensal e resumo.
-- `POST /api/simulations/compare` → recebe contrato, amortizações pontuais, (opcional) `aportes_recorrentes` e uma lista de cenários de TR; devolve o resumo de cada cenário.
+- `POST /api/simulations` → recebe contrato, cenário do indexador, amortizações pontuais e (opcional) `aportes_recorrentes`; devolve cronograma mensal e resumo.
+- `POST /api/simulations/compare` → recebe contrato, amortizações pontuais, (opcional) `aportes_recorrentes` e uma lista de cenários do indexador; devolve o resumo de cada cenário.
 - `POST /api/auth/cadastro` → cria uma conta (nome, e-mail, senha, telefone opcional, cidade, estado). Retorna 409 se o e-mail já existir.
 - `POST /api/auth/login` → recebe e-mail e senha, devolve `{"token": "...", "tipo": "bearer"}` (JWT). Retorna 401 se as credenciais forem inválidas.
 - `GET /api/auth/eu` → devolve os dados do usuário autenticado (requer `Authorization: Bearer <token>`).

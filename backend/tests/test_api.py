@@ -34,7 +34,7 @@ def test_health_retorna_status_ok():
 def test_criar_simulacao_com_cenario_inicial():
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
         "amortizacoes": AMORTIZACOES_FGTS,
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -47,7 +47,7 @@ def test_criar_simulacao_com_cenario_inicial():
 def test_criar_simulacao_pelo_sac():
     corpo = {
         "contrato": {**CONTRATO_BASE, "sistema_amortizacao": "sac"},
-        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
         "amortizacoes": AMORTIZACOES_FGTS,
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -58,10 +58,31 @@ def test_criar_simulacao_pelo_sac():
     assert float(parcelas[-1]["prestacao_financeira"]) < float(parcelas[0]["prestacao_financeira"])
 
 
+def test_criar_simulacao_com_indexador_poupanca():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "indexador": "poupanca"},
+        "cenario_indexador": {"nome": "Poupança 6,0% a.a.", "taxa_anual": "0.06"},
+        "amortizacoes": AMORTIZACOES_FGTS,
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 200
+    assert float(resposta.json()["resumo"]["total_correcao_indexador"]) > 0
+
+
+def test_indexador_desconhecido_retorna_422():
+    corpo = {
+        "contrato": {**CONTRATO_BASE, "indexador": "ipca"},
+        "cenario_indexador": {"nome": "IPCA", "taxa_anual": "0.04"},
+        "amortizacoes": [],
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 422
+
+
 def test_sistema_de_amortizacao_desconhecido_retorna_422():
     corpo = {
         "contrato": {**CONTRATO_BASE, "sistema_amortizacao": "sacre"},
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -71,7 +92,7 @@ def test_sistema_de_amortizacao_desconhecido_retorna_422():
 def test_criar_simulacao_com_aporte_recorrente():
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
         "amortizacoes": [],
         "aportes_recorrentes": [
             {
@@ -94,7 +115,7 @@ def test_criar_simulacao_com_varios_aportes_recorrentes():
     """R$ 500 por mês em 2026 e R$ 1.500 por mês em 2027."""
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
         "amortizacoes": [],
         "aportes_recorrentes": [
             {
@@ -123,7 +144,7 @@ def test_criar_simulacao_com_varios_aportes_recorrentes():
 def test_aporte_recorrente_com_periodicidade_zero_retorna_422():
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
         "aportes_recorrentes": [
             {
@@ -141,7 +162,7 @@ def test_aporte_recorrente_com_periodicidade_zero_retorna_422():
 def test_erro_de_recorrente_invalido_diz_qual_deles_corrigir():
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
         "aportes_recorrentes": [
             {"valor": "500.00", "periodicidade_meses": 1, "mes_inicial": "2026-08-01"},
@@ -157,7 +178,7 @@ def test_simulacao_sem_aporte_recorrente_continua_valida():
     """O campo é opcional: omitir deve funcionar como antes da recorrência existir."""
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
         "amortizacoes": AMORTIZACOES_FGTS,
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -184,7 +205,7 @@ def test_comparar_cenarios_de_tr():
 def test_saldo_invalido_retorna_422_com_mensagem():
     corpo = {
         "contrato": {**CONTRATO_BASE, "saldo_devedor": "0"},
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -195,7 +216,7 @@ def test_saldo_invalido_retorna_422_com_mensagem():
 def test_prazo_zero_retorna_422():
     corpo = {
         "contrato": {**CONTRATO_BASE, "prazo_restante": 0},
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -205,7 +226,7 @@ def test_prazo_zero_retorna_422():
 def test_taxa_negativa_retorna_422():
     corpo = {
         "contrato": {**CONTRATO_BASE, "taxa_nominal_anual": "-0.01"},
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -215,7 +236,7 @@ def test_taxa_negativa_retorna_422():
 def test_amortizacao_negativa_retorna_422():
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [{"data": "2027-06-17", "valor": "-100", "estrategia": "reducao_prazo"}],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -225,7 +246,7 @@ def test_amortizacao_negativa_retorna_422():
 def test_amortizacao_anterior_a_data_base_retorna_422():
     corpo = {
         "contrato": CONTRATO_BASE,
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [{"data": "2020-01-01", "valor": "1000", "estrategia": "reducao_prazo"}],
     }
     resposta = cliente.post("/api/simulations", json=corpo)
@@ -235,7 +256,7 @@ def test_amortizacao_anterior_a_data_base_retorna_422():
 def test_valores_fora_de_faixa_retorna_422():
     corpo = {
         "contrato": {**CONTRATO_BASE, "saldo_devedor": "999999999999"},
-        "cenario_tr": {"nome": "TR", "taxa_anual": "0.015"},
+        "cenario_indexador": {"nome": "TR", "taxa_anual": "0.015"},
         "amortizacoes": [],
     }
     resposta = cliente.post("/api/simulations", json=corpo)

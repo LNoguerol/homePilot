@@ -1,11 +1,13 @@
 export type Estrategia = "reducao_prazo" | "reducao_prestacao";
 export type SistemaAmortizacao = "price" | "sac";
 
+export type Indexador = "tr" | "poupanca";
+
 export interface DadosContrato {
   data_base: string;
   saldo_devedor: string;
   sistema_amortizacao: SistemaAmortizacao;
-  indexador: "tr";
+  indexador: Indexador;
   taxa_nominal_anual: string;
   taxa_efetiva_informada: string;
   prazo_original: number;
@@ -39,7 +41,7 @@ export interface AporteRecorrente {
   estrategia: Estrategia;
 }
 
-export interface CenarioTR {
+export interface CenarioIndexador {
   nome: string;
   taxa_anual: string;
 }
@@ -48,7 +50,7 @@ export interface ParcelaMensal {
   numero_mes: number;
   competencia: string;
   saldo_inicial: string;
-  correcao_tr: string;
+  correcao_indexador: string;
   saldo_corrigido: string;
   juros: string;
   prestacao_financeira: string;
@@ -71,7 +73,7 @@ export interface ResumoSimulacao {
   meses_ate_quitacao: number;
   meses_antecipados: number;
   total_juros: string;
-  total_correcao_tr: string;
+  total_correcao_indexador: string;
   total_seguros_tarifas: string;
   total_amortizado_extraordinario: string;
   soma_prestacoes: string;

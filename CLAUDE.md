@@ -1,6 +1,6 @@
 # HomePilot
 
-Simulador de financiamento imobiliário brasileiro (Tabela Price ou SAC + TR + amortizações extraordinárias). Ver `README.md` para arquitetura completa, fórmulas e instruções de instalação — este arquivo cobre apenas convenções e contexto que não estão lá.
+Simulador de financiamento imobiliário brasileiro (Tabela Price ou SAC + indexador (TR ou poupança) + amortizações extraordinárias). Ver `README.md` para arquitetura completa, fórmulas e instruções de instalação — este arquivo cobre apenas convenções e contexto que não estão lá.
 
 ## Convenção de idioma
 
@@ -22,7 +22,7 @@ Cada campo da tela tem um botão "?" (`componentes/Ajuda.svelte`) com sua explic
 ## Decisões financeiras chave
 
 - Taxa de juros mensal = `taxa_nominal_anual / 12` (proporcionalidade simples), **não** a taxa efetiva informada no contrato. Confirmado numericamente para o cenário inicial: `(1+0,1002/12)^12-1 ≈ 10,49%`, batendo com a taxa efetiva do contrato.
-- TR (e demais indexadores) convertida por juros compostos: `(1+taxa_anual)^(1/12)-1`.
+- TR e demais indexadores convertidos por juros compostos: `(1+taxa_anual)^(1/12)-1`. O indexador é selecionável (`Indexador`: `TR` ou `POUPANCA`) e o motor não ramifica por tipo — a poupança é modelada como mais um cenário de taxa anual constante, na mesma convenção da TR, **não** a regra oficial do BC (TR + 0,5% a.m. ou TR + 70% da Selic, conforme o "gatilho" de 8,5% a.a.). Ver `docs/regras-financeiras.md` §1.2.
 - A prestação Price é **recalculada todo mês** com base no saldo corrigido e prazo restante vigentes, em vez de fixada uma única vez — isso resolve o ajuste da última parcela sem caso especial. O mesmo vale para a amortização do SAC (`saldo / prazo`).
 - Aportes extraordinários da **mesma competência somam** (pontuais entre si, recorrentes entre si e uns com os outros). A regra antiga aplicava só o primeiro e descartava o resto — foi revogada porque um aporte recorrente mensal engoliria todo aporte pontual do contrato. Ver `docs/regras-financeiras.md` §4.0.
 - Aportes recorrentes são uma **lista**, não um único registro: é o que permite mudar de patamar ao longo do contrato ("R$ 500/mês em 2026, R$ 1.500/mês em 2027") sem materializar centenas de eventos pontuais. Sobreposição entre recorrências é permitida e soma.
@@ -32,7 +32,7 @@ Cada campo da tela tem um botão "?" (`componentes/Ajuda.svelte`) com sua explic
 ## Rodar e testar
 
 ```bash
-cd backend && source .venv/bin/activate && pytest -q   # 80 testes
+cd backend && source .venv/bin/activate && pytest -q   # 103 testes
 cd frontend && npm run build                            # build de produção
 ```
 

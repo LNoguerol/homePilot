@@ -18,8 +18,8 @@ def calcular_amortizacao_constante(saldo: Decimal, prazo_meses: int) -> Decimal:
     Onde PV é o saldo devedor e n é o prazo restante em meses. No HomePilot esta
     fórmula é reaplicada a cada mês sobre o saldo corrigido e o prazo restante
     vigentes (ver `core.simulador`), então a amortização é constante *entre
-    eventos* — ela é reajustada quando a TR corrige o saldo ou quando uma
-    amortização extraordinária altera o saldo/prazo.
+    eventos* — ela é reajustada quando o indexador corrige o saldo ou quando
+    uma amortização extraordinária altera o saldo/prazo.
     """
     if prazo_meses <= 0:
         raise ValueError("prazo_meses deve ser maior que zero para calcular a amortização constante")
