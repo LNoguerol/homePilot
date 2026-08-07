@@ -82,8 +82,15 @@
     return Math.floor(meses / Math.max(1, r.periodicidade_meses)) + 1;
   }
 
+  function hojeISO(): string {
+    const hoje = new Date();
+    const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+    const dia = String(hoje.getDate()).padStart(2, "0");
+    return `${hoje.getFullYear()}-${mes}-${dia}`;
+  }
+
   function adicionar() {
-    amortizacoes = [...amortizacoes, { data: "2027-06-17", valor: "40000.00", estrategia: "reducao_prazo" }];
+    amortizacoes = [...amortizacoes, { data: hojeISO(), valor: "0.00", estrategia: "reducao_prazo" }];
   }
 
   function remover(indice: number) {
@@ -122,6 +129,11 @@
         {@const quantidade = contarAportes(recorrente)}
         <div class="recorrente">
           <div class="grade-recorrente">
+            <button
+              class="remover remover-recorrente"
+              on:click={() => removerRecorrente(indice)}
+              title="Excluir aporte recorrente">✕</button
+            >
             <label>
               <span class="rotulo-linha">
                 Valor (R$)
@@ -194,12 +206,6 @@
               depois de simular.
             {/if}
           </p>
-
-          <button
-            class="remover remover-recorrente"
-            on:click={() => removerRecorrente(indice)}
-            title="Excluir aporte recorrente">✕</button
-          >
         </div>
       {/each}
     </div>
@@ -293,18 +299,22 @@
     background: var(--cor-destaque-fundo);
     border: 1px solid var(--cor-destaque);
     border-radius: var(--raio-sm);
-    /* folga à direita para o ✕ ancorado no canto não cobrir o primeiro campo */
-    padding: 0.9rem 2.6rem 0.9rem 1rem;
-  }
-  .remover-recorrente {
-    position: absolute;
-    top: 0.7rem;
-    right: 0.7rem;
+    /* folga à direita para o ✕ não cobrir o último campo da grade */
+    padding: 0.9rem 3rem 0.9rem 1rem;
   }
   .grade-recorrente {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 0.7rem;
+  }
+  .remover-recorrente {
+    /* alinhado à base dos inputs (mesmo critério da linha de aportes
+       pontuais, que usa align-items: end), não ao topo do cartão — senão
+       fica descolado para cima, acima do rótulo dos campos */
+    position: absolute;
+    bottom: 0;
+    right: -2.3rem;
   }
   .previsao {
     margin: 0.85rem 0 0 0;
