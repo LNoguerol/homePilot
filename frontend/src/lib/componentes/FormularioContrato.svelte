@@ -139,8 +139,8 @@
     <div>
       <h3>Importar do extrato</h3>
       <p class="descricao-importar">
-        Envie o PDF do extrato do banco para preencher automaticamente os campos que ele conseguir
-        reconhecer. Confira os valores antes de simular.
+        Envie o PDF do extrato da evolução das suas parcelas para preencher automaticamente os campos que
+        ele conseguir reconhecer. Confira os valores antes de simular.
       </p>
     </div>
     <label class="botao-importar" class:desabilitado={importando}>
