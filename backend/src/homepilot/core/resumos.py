@@ -8,6 +8,12 @@ from homepilot.core.modelos import DadosContrato, ParcelaMensal, ResumoSimulacao
 ZERO = Decimal("0")
 
 
+def _status_limite(limite: Decimal | None, ultrapassou: bool) -> str:
+    if limite is None:
+        return "Sem limite definido"
+    return "Ultrapassado" if ultrapassou else "Dentro do limite"
+
+
 def montar_resumo(contrato: DadosContrato, parcelas: list[ParcelaMensal]) -> ResumoSimulacao:
     """Monta o resumo de indicadores a partir do cronograma mensal já calculado."""
     if not parcelas:
@@ -26,8 +32,8 @@ def montar_resumo(contrato: DadosContrato, parcelas: list[ParcelaMensal]) -> Res
     meses_ate_quitacao = ultima_parcela.numero_mes
     meses_antecipados = max(0, contrato.prazo_restante - meses_ate_quitacao)
 
-    status_limite_saldo = "Ultrapassado" if any(p.alerta_saldo for p in parcelas) else "Dentro do limite"
-    status_limite_prestacao = "Ultrapassado" if any(p.alerta_prestacao for p in parcelas) else "Dentro do limite"
+    status_limite_saldo = _status_limite(contrato.limite_saldo, any(p.alerta_saldo for p in parcelas))
+    status_limite_prestacao = _status_limite(contrato.limite_prestacao, any(p.alerta_prestacao for p in parcelas))
 
     return ResumoSimulacao(
         saldo_inicial=contrato.saldo_devedor,

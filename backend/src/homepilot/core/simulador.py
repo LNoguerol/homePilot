@@ -207,8 +207,10 @@ def validar_contrato(contrato: DadosContrato) -> None:
         raise ErroSimulacaoInvalida("A taxa nominal anual informada está fora de uma faixa razoável.")
     if contrato.seguros_tarifas_mensais < 0:
         raise ErroSimulacaoInvalida("O valor de seguros e tarifas não pode ser negativo.")
-    if contrato.limite_saldo <= 0 or contrato.limite_prestacao <= 0:
-        raise ErroSimulacaoInvalida("Os limites financeiros devem ser maiores que zero.")
+    if contrato.limite_saldo is not None and contrato.limite_saldo <= 0:
+        raise ErroSimulacaoInvalida("O limite do saldo devedor deve ser maior que zero.")
+    if contrato.limite_prestacao is not None and contrato.limite_prestacao <= 0:
+        raise ErroSimulacaoInvalida("O limite da prestação total deve ser maior que zero.")
 
 
 def validar_amortizacoes(contrato: DadosContrato, amortizacoes: list[AmortizacaoExtraordinaria]) -> None:
@@ -371,8 +373,8 @@ def simular(
                 saldo_final=_arredondar(saldo_final),
                 prazo_restante=prazo_restante,
                 estrategia_aplicada=estrategia_aplicada,
-                alerta_saldo=saldo_final > contrato.limite_saldo,
-                alerta_prestacao=prestacao_total > contrato.limite_prestacao,
+                alerta_saldo=contrato.limite_saldo is not None and saldo_final > contrato.limite_saldo,
+                alerta_prestacao=contrato.limite_prestacao is not None and prestacao_total > contrato.limite_prestacao,
             )
         )
 

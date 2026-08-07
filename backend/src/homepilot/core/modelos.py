@@ -44,9 +44,9 @@ class DadosContrato:
     taxa_efetiva_informada: Decimal
     prazo_original: int
     prazo_restante: int
-    seguros_tarifas_mensais: Decimal
-    limite_saldo: Decimal
-    limite_prestacao: Decimal
+    seguros_tarifas_mensais: Decimal = Decimal("0")
+    limite_saldo: Decimal | None = None
+    limite_prestacao: Decimal | None = None
 
 
 @dataclass
