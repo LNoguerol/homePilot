@@ -10,6 +10,7 @@
   import ComparacaoCenarios from "./lib/componentes/ComparacaoCenarios.svelte";
   import TelaLogin from "./lib/componentes/TelaLogin.svelte";
   import TelaCadastro from "./lib/componentes/TelaCadastro.svelte";
+  import TelaLanding from "./lib/componentes/TelaLanding.svelte";
   import Logo from "./lib/componentes/Logo.svelte";
   import { simular, compararCenarios } from "./lib/api";
   import { buscarUsuarioAtual, limparToken, obterToken } from "./lib/autenticacao";
@@ -25,7 +26,7 @@
 
   let usuario: Usuario | null = null;
   let verificandoSessao = true;
-  let telaAuth: "login" | "cadastro" = "login";
+  let telaAuth: "landing" | "login" | "cadastro" = "landing";
 
   onMount(async () => {
     if (obterToken()) {
@@ -45,6 +46,7 @@
   function sair() {
     limparToken();
     usuario = null;
+    telaAuth = "landing";
   }
 
   function contratoInicial(): DadosContrato {
@@ -196,23 +198,27 @@
   }
 </script>
 
-<header class="barra-topo">
-  <div class="marca">
-    <Logo tamanho={30} />
-    <span class="nome-marca">HomePilot</span>
-  </div>
-  {#if usuario}
-    <div class="area-usuario">
-      <span>Olá, {usuario.nome.split(" ")[0]}</span>
-      <button class="botao-sair" on:click={sair}>Sair</button>
+{#if !(telaAuth === "landing" && !usuario)}
+  <header class="barra-topo">
+    <div class="marca">
+      <Logo tamanho={30} />
+      <span class="nome-marca">HomePilot</span>
     </div>
-  {/if}
-</header>
+    {#if usuario}
+      <div class="area-usuario">
+        <span>Olá, {usuario.nome.split(" ")[0]}</span>
+        <button class="botao-sair" on:click={sair}>Sair</button>
+      </div>
+    {/if}
+  </header>
+{/if}
 
 {#if verificandoSessao}
   <p class="carregando-sessao">Carregando...</p>
 {:else if !usuario}
-  {#if telaAuth === "login"}
+  {#if telaAuth === "landing"}
+    <TelaLanding irParaCadastro={() => (telaAuth = "cadastro")} irParaLogin={() => (telaAuth = "login")} />
+  {:else if telaAuth === "login"}
     <TelaLogin {aoAutenticar} irParaCadastro={() => (telaAuth = "cadastro")} />
   {:else}
     <TelaCadastro {aoAutenticar} irParaLogin={() => (telaAuth = "login")} />
