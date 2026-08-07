@@ -10,6 +10,19 @@ import type {
 
 const BASE_URL = "/api";
 
+/** Seguros/tarifas e os dois limites são opcionais no formulário; em branco,
+ * viram string vazia, que o `Decimal` do backend não consegue interpretar.
+ * `JSON.stringify` omite chaves com valor `undefined`, então convertê-las
+ * aqui faz o backend aplicar os próprios valores-padrão (0 e "sem limite"). */
+function prepararContratoParaEnvio(contrato: DadosContrato) {
+  return {
+    ...contrato,
+    seguros_tarifas_mensais: contrato.seguros_tarifas_mensais || undefined,
+    limite_saldo: contrato.limite_saldo || undefined,
+    limite_prestacao: contrato.limite_prestacao || undefined,
+  };
+}
+
 async function tratarResposta<T>(resposta: Response, mensagemPadrao = "Erro desconhecido."): Promise<T> {
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => ({ detail: mensagemPadrao }));
@@ -36,7 +49,7 @@ export async function simular(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contrato,
+      contrato: prepararContratoParaEnvio(contrato),
       cenario_indexador: cenarioIndexador,
       amortizacoes,
       aportes_recorrentes: aportesRecorrentes,
@@ -54,7 +67,12 @@ export async function compararCenarios(
   const resposta = await fetch(`${BASE_URL}/simulations/compare`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contrato, amortizacoes, cenarios, aportes_recorrentes: aportesRecorrentes }),
+    body: JSON.stringify({
+      contrato: prepararContratoParaEnvio(contrato),
+      amortizacoes,
+      cenarios,
+      aportes_recorrentes: aportesRecorrentes,
+    }),
   });
   return tratarResposta<CompararSaida>(resposta, "Erro desconhecido na comparação.");
 }

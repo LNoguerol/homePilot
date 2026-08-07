@@ -100,8 +100,8 @@ Ordem exata das operações em cada mês (implementa README §4.7):
 6. `saldo_apos_ordinaria = saldo_corrigido - amortizacao_ordinaria`.
 7. Se houver aportes na competência (pontuais e/ou recorrentes): `amortizacao_extra = min(soma_dos_aportes, saldo_apos_ordinaria)` (nunca deixa o saldo negativo); aplica-se a estratégia (ver seção 4).
 8. Caso contrário: `prazo_restante` decrementa em 1 (piso 0).
-9. `prestacao_total = arredondar(prestacao_financeira + seguros_tarifas_mensais)`.
-10. Registra a `ParcelaMensal` com os alertas (`alerta_saldo = saldo_final > limite_saldo`, `alerta_prestacao = prestacao_total > limite_prestacao`).
+9. `prestacao_total = arredondar(prestacao_financeira + seguros_tarifas_mensais)`. `seguros_tarifas_mensais` é opcional e vale `0` quando não informado.
+10. Registra a `ParcelaMensal` com os alertas (`alerta_saldo = limite_saldo is not None and saldo_final > limite_saldo`, `alerta_prestacao = limite_prestacao is not None and prestacao_total > limite_prestacao`). Ambos os limites são opcionais — sem eles, o alerta correspondente nunca dispara.
 11. Repete enquanto `saldo > 0 and prazo_restante > 0`.
 
 ### Competência do mês
@@ -175,8 +175,9 @@ Se `saldo_apos_extra <= 0` após o evento: `prazo_restante` é forçado para `1`
 | `taxa_nominal_anual < 0` | taxa nominal não pode ser negativa |
 | `taxa_efetiva_informada < 0` | taxa efetiva não pode ser negativa |
 | `taxa_nominal_anual > 1` (100% a.a., `LIMITE_TAXA_ANUAL_RAZOAVEL`) | fora de faixa razoável |
-| `seguros_tarifas_mensais < 0` | não pode ser negativo |
-| `limite_saldo <= 0` ou `limite_prestacao <= 0` | limites devem ser > 0 |
+| `seguros_tarifas_mensais < 0` | não pode ser negativo (campo opcional, padrão `0`) |
+| `limite_saldo` informado e `<= 0` | limite deve ser > 0 quando informado (campo opcional, padrão "sem limite") |
+| `limite_prestacao` informado e `<= 0` | limite deve ser > 0 quando informado (campo opcional, padrão "sem limite") |
 
 ### 5.2 Amortizações (`validar_amortizacoes`)
 
@@ -211,7 +212,7 @@ Calculado a partir do cronograma já pronto (`list[ParcelaMensal]`), sem reproce
 - `total_juros`, `total_correcao_indexador`, `total_seguros_tarifas`, `total_amortizado_extraordinario`, `soma_prestacoes` = somas simples das colunas correspondentes.
 - `meses_ate_quitacao` = número da última parcela.
 - `meses_antecipados = max(0, prazo_restante_do_contrato - meses_ate_quitacao)`.
-- `status_limite_saldo` / `status_limite_prestacao` = `"Ultrapassado"` se **qualquer** parcela tiver `alerta_saldo`/`alerta_prestacao` verdadeiro, senão `"Dentro do limite"`.
+- `status_limite_saldo` / `status_limite_prestacao` = `"Sem limite definido"` se o limite correspondente do contrato for `None`; senão `"Ultrapassado"` se **qualquer** parcela tiver `alerta_saldo`/`alerta_prestacao` verdadeiro, senão `"Dentro do limite"`.
 
 ## 7. O que este motor deliberadamente não faz
 

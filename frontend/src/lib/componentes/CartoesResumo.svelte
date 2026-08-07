@@ -17,7 +17,7 @@
     aportes:
       "Total efetivamente abatido do saldo pelos aportes extraordinários. É o valor aportado, não a economia de juros que ele gerou — para medir a economia, compare os juros totais desta simulação com uma simulação sem aportes.",
     limites:
-      "Confronto do cronograma com os dois limites que você configurou no formulário. “Ultrapassado” significa que pelo menos um mês passou do limite; esses meses ficam destacados na tabela mensal.",
+      "Confronto do cronograma com os dois limites que você configurou no formulário — ambos opcionais. “Sem limite definido” aparece quando o campo correspondente foi deixado em branco; “Ultrapassado” significa que pelo menos um mês passou do limite informado, e esses meses ficam destacados na tabela mensal.",
   };
 
   $: totalAportado =

@@ -84,6 +84,27 @@ def test_sem_alerta_de_prestacao_quando_dentro_do_limite_configurado():
     assert resultado.resumo.status_limite_prestacao == "Dentro do limite"
 
 
+def test_sem_seguros_nem_limites_definidos_nao_gera_erro_nem_alerta():
+    """Os três campos são opcionais: omiti-los usa os padrões do dataclass
+    (seguros = 0, limites = None) em vez de exigir preenchimento."""
+    contrato = DadosContrato(
+        data_base=date(2026, 7, 17),
+        saldo_devedor=Decimal("332786.77"),
+        sistema_amortizacao=SistemaAmortizacao.PRICE,
+        indexador=Indexador.TR,
+        taxa_nominal_anual=Decimal("0.1002"),
+        taxa_efetiva_informada=Decimal("0.1049"),
+        prazo_original=390,
+        prazo_restante=376,
+    )
+    resultado = simular(contrato, CenarioIndexador("TR 1,5% a.a.", Decimal("0.015")))
+    assert all(p.seguros_tarifas == Decimal("0.00") for p in resultado.parcelas)
+    assert not any(p.alerta_saldo for p in resultado.parcelas)
+    assert not any(p.alerta_prestacao for p in resultado.parcelas)
+    assert resultado.resumo.status_limite_saldo == "Sem limite definido"
+    assert resultado.resumo.status_limite_prestacao == "Sem limite definido"
+
+
 def test_comparacao_de_cenarios_de_tr_gera_resultados_diferentes():
     contrato = contrato_padrao()
     resultado_0 = simular(contrato, CenarioIndexador("TR 0,0% a.a.", Decimal("0.0")))

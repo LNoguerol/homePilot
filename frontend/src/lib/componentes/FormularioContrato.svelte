@@ -51,6 +51,10 @@
     aplicar("prazo_restante", extraido.prazo_restante, encontrados, naoEncontrados);
 
     contrato = contrato;
+    // O PDF entrega taxas em fração — os campos do formulário mostram
+    // percentual, então os campos-espelho precisam ser resincronizados aqui.
+    taxaNominalPercentual = paraPercentual(contrato.taxa_nominal_anual);
+    taxaEfetivaPercentual = paraPercentual(contrato.taxa_efetiva_informada);
     mensagemImportacao =
       encontrados.length > 0
         ? `Importado do PDF: ${encontrados.join(", ")}.` +
@@ -94,6 +98,48 @@
     taxaIndexadorPersonalizada = "";
   }
 
+  // O motor financeiro e o contrato trabalham com fração (0,1002); o
+  // formulário mostra percentual (10,02) por usabilidade. `taxaNominalPercentual`
+  // e `taxaEfetivaPercentual` são os campos-espelho que o usuário edita — a
+  // fração em `contrato` é derivada deles a cada digitação.
+  function paraPercentual(fracao: string): string {
+    if (fracao.trim() === "") return "";
+    const numero = Number(fracao);
+    return Number.isNaN(numero) ? "" : String(Number((numero * 100).toFixed(4)));
+  }
+
+  function paraFracao(percentual: string): string {
+    if (percentual.trim() === "") return "";
+    const numero = Number(percentual);
+    return Number.isNaN(numero) ? "" : String(Number((numero / 100).toFixed(6)));
+  }
+
+  let taxaNominalPercentual = paraPercentual(contrato.taxa_nominal_anual);
+  let taxaEfetivaPercentual = paraPercentual(contrato.taxa_efetiva_informada);
+
+  // Handlers imperativos (não `$:`) para evitar dependência cíclica entre
+  // `contrato` e os campos-espelho de percentual no grafo reativo do Svelte.
+  function aoDigitarTaxaNominal(evento: Event) {
+    taxaNominalPercentual = (evento.currentTarget as HTMLInputElement).value;
+    contrato.taxa_nominal_anual = paraFracao(taxaNominalPercentual);
+    contrato = contrato;
+  }
+
+  function aoDigitarTaxaEfetiva(evento: Event) {
+    taxaEfetivaPercentual = (evento.currentTarget as HTMLInputElement).value;
+    contrato.taxa_efetiva_informada = paraFracao(taxaEfetivaPercentual);
+    contrato = contrato;
+  }
+
+  // "Restaurar valores iniciais" troca `contrato` por um objeto novo (não
+  // apenas muda campos) — precisa resincronizar os campos-espelho de percentual.
+  let contratoAnterior = contrato;
+  $: if (contrato !== contratoAnterior) {
+    contratoAnterior = contrato;
+    taxaNominalPercentual = paraPercentual(contrato.taxa_nominal_anual);
+    taxaEfetivaPercentual = paraPercentual(contrato.taxa_efetiva_informada);
+  }
+
   const sistemas = [
     { valor: "price", rotulo: "Price — prestação constante" },
     { valor: "sac", rotulo: "SAC — amortização constante" },
@@ -116,9 +162,9 @@
     prazoRestante:
       "Quantos meses ainda faltam segundo o contrato atual. É este valor — e não o prazo original — que entra no cálculo da prestação e da amortização.",
     taxaNominal:
-      "Taxa de juros anual do contrato, em fração: digite 0,1002 para 10,02% a.a. É dividida por 12 (proporcionalidade simples) para obter a taxa mensal aplicada em todos os meses.",
+      "Taxa de juros anual do contrato, em percentual: digite 10,02 para 10,02% a.a. É dividida por 12 (proporcionalidade simples) para obter a taxa mensal aplicada em todos os meses.",
     taxaEfetiva:
-      "Taxa efetiva anual que aparece no contrato, em fração como a nominal: 0,1049 para 10,49% a.a. Serve apenas para conferência — ela deve ficar próxima de (1 + nominal ÷ 12)¹² − 1. Não entra em nenhum cálculo da simulação.",
+      "Taxa efetiva anual que aparece no contrato, em percentual como a nominal: 10,49 para 10,49% a.a. Serve apenas para conferência — ela deve ficar próxima de (1 + nominal ÷ 12)¹² − 1. Não entra em nenhum cálculo da simulação.",
     indexador:
       "Índice que corrige o saldo devedor todo mês. TR é o padrão do SFH; poupança é uma alternativa de mercado usada em alguns contratos. O simulador trata os dois do mesmo jeito: um cenário de taxa anual constante, convertido para taxa mensal por juros compostos — não reproduz a regra oficial da poupança (que muda com a Selic), apenas aproxima seu efeito.",
     cenarioIndexador:
@@ -126,11 +172,11 @@
     indexadorPersonalizado:
       "Taxa anual do indexador em fração: 0,02 para 2% a.a. Use 0 para simular sem nenhuma correção monetária do saldo.",
     segurosTarifas:
-      "Valor fixo somado a toda prestação (seguros MIP e DFI, tarifa de administração). Entra na prestação total e no limite de prestação, mas nunca abate o saldo nem rende juros.",
+      "Opcional — deixe em branco para simular sem seguros nem tarifas (equivale a zero). Se preenchido, é um valor fixo somado a toda prestação (seguros MIP e DFI, tarifa de administração). Entra na prestação total e no limite de prestação, mas nunca abate o saldo nem rende juros.",
     limiteSaldo:
-      "Serve só de alerta: se o saldo devedor projetado passar deste valor em algum mês, o mês é destacado na tabela e o resumo aponta “Ultrapassado”. Não altera nenhum cálculo.",
+      "Opcional — deixe em branco para simular sem checar nenhum limite de saldo. Se preenchido, serve só de alerta: se o saldo devedor projetado passar deste valor em algum mês, o mês é destacado na tabela e o resumo aponta “Ultrapassado”. Não altera nenhum cálculo.",
     limitePrestacao:
-      "Mesmo princípio do limite de saldo, aplicado à prestação total (já com seguros e tarifas). Útil para ver se a parcela caberia no seu orçamento em todos os meses.",
+      "Opcional — deixe em branco para simular sem checar nenhum limite de prestação. Se preenchido, segue o mesmo princípio do limite de saldo, aplicado à prestação total (já com seguros e tarifas). Útil para ver se a parcela caberia no seu orçamento em todos os meses.",
   };
 </script>
 
@@ -228,25 +274,27 @@
   <div class="grade">
     <label>
       <span class="rotulo-linha">
-        Taxa nominal anual (fração)
+        Taxa nominal anual (%)
         <Ajuda rotulo="a taxa nominal anual" texto={textos.taxaNominal} />
       </span>
       <input
         type="number"
-        step="0.0001"
-        bind:value={contrato.taxa_nominal_anual}
+        step="0.01"
+        value={taxaNominalPercentual}
+        on:input={aoDigitarTaxaNominal}
         class:invalido={camposFaltando.has("taxa_nominal_anual")}
       />
     </label>
     <label>
       <span class="rotulo-linha">
-        Taxa efetiva informada (fração)
+        Taxa efetiva informada (%)
         <Ajuda rotulo="a taxa efetiva informada" texto={textos.taxaEfetiva} />
       </span>
       <input
         type="number"
-        step="0.0001"
-        bind:value={contrato.taxa_efetiva_informada}
+        step="0.01"
+        value={taxaEfetivaPercentual}
+        on:input={aoDigitarTaxaEfetiva}
         class:invalido={camposFaltando.has("taxa_efetiva_informada")}
       />
     </label>
@@ -294,7 +342,7 @@
   <div class="grade">
     <label>
       <span class="rotulo-linha">
-        Seguros e tarifas mensais (R$)
+        Seguros e tarifas mensais (R$) — opcional
         <Ajuda rotulo="seguros e tarifas mensais" texto={textos.segurosTarifas} />
       </span>
       <input
@@ -312,7 +360,7 @@
   <div class="grade">
     <label>
       <span class="rotulo-linha">
-        Limite do saldo devedor (R$)
+        Limite do saldo devedor (R$) — opcional
         <Ajuda rotulo="o limite de saldo devedor" texto={textos.limiteSaldo} />
       </span>
       <input
@@ -324,7 +372,7 @@
     </label>
     <label>
       <span class="rotulo-linha">
-        Limite da prestação total (R$)
+        Limite da prestação total (R$) — opcional
         <Ajuda rotulo="o limite de prestação total" texto={textos.limitePrestacao} />
       </span>
       <input

@@ -108,9 +108,19 @@
     return valor !== "" && valor !== null && valor !== undefined;
   }
 
+  // Seguros/tarifas e os dois limites são opcionais: sem eles, o motor calcula
+  // sem seguros e sem checar limite (ver core/simulador.py e core/resumos.py).
+  const camposOpcionais = new Set<keyof DadosContrato>([
+    "sistema_amortizacao",
+    "indexador",
+    "seguros_tarifas_mensais",
+    "limite_saldo",
+    "limite_prestacao",
+  ]);
+
   function camposContratoFaltando(dadosContrato: DadosContrato): (keyof DadosContrato)[] {
     return (Object.keys(rotulosContrato) as (keyof DadosContrato)[])
-      .filter((campo) => campo !== "sistema_amortizacao" && campo !== "indexador")
+      .filter((campo) => !camposOpcionais.has(campo))
       .filter((campo) => !campoPreenchido(dadosContrato[campo]));
   }
 

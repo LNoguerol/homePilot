@@ -58,6 +58,27 @@ def test_criar_simulacao_pelo_sac():
     assert float(parcelas[-1]["prestacao_financeira"]) < float(parcelas[0]["prestacao_financeira"])
 
 
+def test_criar_simulacao_sem_seguros_nem_limites():
+    """Seguros/tarifas e os dois limites são opcionais: omiti-los não pode dar 422."""
+    contrato = {
+        chave: valor
+        for chave, valor in CONTRATO_BASE.items()
+        if chave not in {"seguros_tarifas_mensais", "limite_saldo", "limite_prestacao"}
+    }
+    corpo = {
+        "contrato": contrato,
+        "cenario_indexador": {"nome": "TR 1,5% a.a.", "taxa_anual": "0.015"},
+    }
+    resposta = cliente.post("/api/simulations", json=corpo)
+    assert resposta.status_code == 200
+    corpo_resposta = resposta.json()
+    assert len(corpo_resposta["parcelas"]) > 0
+    assert all(p["seguros_tarifas"] == "0.00" for p in corpo_resposta["parcelas"])
+    assert all(p["alerta_saldo"] is False and p["alerta_prestacao"] is False for p in corpo_resposta["parcelas"])
+    assert corpo_resposta["resumo"]["status_limite_saldo"] == "Sem limite definido"
+    assert corpo_resposta["resumo"]["status_limite_prestacao"] == "Sem limite definido"
+
+
 def test_criar_simulacao_com_indexador_poupanca():
     corpo = {
         "contrato": {**CONTRATO_BASE, "indexador": "poupanca"},

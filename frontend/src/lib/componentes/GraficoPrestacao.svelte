@@ -15,9 +15,12 @@
 
   /** Após a quitação, uma das duas séries pode ser mais curta que a outra —
    * usa a competência (não o índice) para alinhar os pontos e completa o que
-   * já foi quitado com prestação zero, em vez de truncar o eixo X pela mais curta. */
+   * já foi quitado com prestação zero, em vez de truncar o eixo X pela mais curta.
+   * Arredonda para reais inteiros: a prestação recalculada todo mês (ver
+   * CLAUDE.md) varia poucos centavos de mês a mês, o que force o eixo Y a uma
+   * escala minúscula e deixa a linha com aparência de serrilhado sem sentido. */
   function construirSerie(base: ParcelaMensal[], competencias: string[]): number[] {
-    const porCompetencia = new Map(base.map((p) => [p.competencia, Number(p.prestacao_total)]));
+    const porCompetencia = new Map(base.map((p) => [p.competencia, Math.round(Number(p.prestacao_total))]));
     return competencias.map((competencia) => porCompetencia.get(competencia) ?? 0);
   }
 
@@ -54,13 +57,17 @@
                 },
               ]
             : []),
-          {
-            label: "Limite da prestação",
-            data: competencias.map(() => Number(limitePrestacao)),
-            borderColor: "#d64545",
-            borderDash: [6, 4],
-            pointRadius: 0,
-          },
+          ...(limitePrestacao !== ""
+            ? [
+                {
+                  label: "Limite da prestação",
+                  data: competencias.map(() => Number(limitePrestacao)),
+                  borderColor: "#d64545",
+                  borderDash: [6, 4],
+                  pointRadius: 0,
+                },
+              ]
+            : []),
         ],
       },
       options: {
