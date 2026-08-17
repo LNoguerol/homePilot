@@ -5,6 +5,14 @@ tabela mensal de parcelas varia demais de layout entre bancos para um parser
 genérico valer a pena. Campos não encontrados voltam como `None`; quem chama
 decide o que fazer com a lacuna (a API expõe os campos como opcionais e a
 tela deixa o usuário completar à mão).
+
+Layouts reconhecidos hoje: extrato do Bradesco e Demonstrativo Descritivo de
+Crédito (DDC) do Itaú. Cada um tem seu próprio conjunto de padrões — o de
+prazo/taxa efetiva/data-base tenta o formato do Bradesco primeiro e só cai
+para o do Itaú se o primeiro não bater (idem para saldo/taxa nominal). O DDC
+do Itaú não tem um campo único de "saldo devedor atual" no cabeçalho (só na
+tabela mensal, fora do escopo deste parser), então `saldo_devedor` fica
+`None` nesse layout.
 """
 from __future__ import annotations
 
@@ -48,6 +56,19 @@ _PADRAO_SALDO_E_NOMINAL = re.compile(
     r"Nominal\(a\.m\)\s+([\d.,]+)\s*\n[^\n]*?(\d{1,2},\d+)%\s+\d{1,2},\d+%"
 )
 
+# Layout alternativo: Demonstrativo Descritivo de Crédito (DDC) do Itaú. Os
+# rótulos não têm espaço entre as palavras internas na extração do pdfplumber
+# (ex.: "Prazototaloperação 115", "TaxadeJuros(anual) 6,690948000%") — daí o
+# `\s*` (em vez de `\s+`) entre as palavras do rótulo, tolerando os dois casos.
+# Diferente do Bradesco, não há um único campo de "saldo devedor atual" nem
+# "data base" no cabeçalho; usamos a data de emissão do demonstrativo como
+# aproximação da data-base (é a data "as of" do prazo remanescente informado).
+_PADRAO_PRAZO_TOTAL_ITAU = re.compile(r"Prazo\s*total\s*opera[çc][ãa]o\s+(\d+)")
+_PADRAO_PRAZO_REMANESCENTE_ITAU = re.compile(r"Prazo\s*remanescente\s+(\d+)")
+_PADRAO_TAXA_NOMINAL_ANUAL_ITAU = re.compile(r"Taxa\s*de\s*Juros\s*\(anual\)\s+(\d{1,2},\d+)%")
+_PADRAO_TAXA_EFETIVA_ANUAL_ITAU = re.compile(r"Taxa\s*efetiva\s*\(anual\)\s+(\d{1,2},\d+)%")
+_PADRAO_EMISSAO_ITAU = re.compile(r"Emitido\s*em\s*(\d{1,2})\.(\d{1,2})\.(\d{4})")
+
 
 def _valor_brl_para_decimal(texto: str) -> Decimal | None:
     try:
@@ -84,11 +105,29 @@ def extrair_de_texto(texto: str) -> DadosContratoExtraidos:
         dados.prazo_restante = prazo_total - parcela_atual
         dados.taxa_efetiva_informada = _percentual_para_fracao(prazo_e_efetiva.group(3))
         dados.data_base = _data_br_para_data(prazo_e_efetiva.group(4))
+    else:
+        prazo_total_itau = _PADRAO_PRAZO_TOTAL_ITAU.search(texto)
+        if prazo_total_itau:
+            dados.prazo_original = int(prazo_total_itau.group(1))
+        prazo_remanescente_itau = _PADRAO_PRAZO_REMANESCENTE_ITAU.search(texto)
+        if prazo_remanescente_itau:
+            dados.prazo_restante = int(prazo_remanescente_itau.group(1))
+        taxa_efetiva_itau = _PADRAO_TAXA_EFETIVA_ANUAL_ITAU.search(texto)
+        if taxa_efetiva_itau:
+            dados.taxa_efetiva_informada = _percentual_para_fracao(taxa_efetiva_itau.group(1))
+        emissao_itau = _PADRAO_EMISSAO_ITAU.search(texto)
+        if emissao_itau:
+            dia, mes, ano = (int(grupo) for grupo in emissao_itau.groups())
+            dados.data_base = date(ano, mes, dia)
 
     saldo_e_nominal = _PADRAO_SALDO_E_NOMINAL.search(texto)
     if saldo_e_nominal:
         dados.saldo_devedor = _valor_brl_para_decimal(saldo_e_nominal.group(1))
         dados.taxa_nominal_anual = _percentual_para_fracao(saldo_e_nominal.group(2))
+    else:
+        taxa_nominal_itau = _PADRAO_TAXA_NOMINAL_ANUAL_ITAU.search(texto)
+        if taxa_nominal_itau:
+            dados.taxa_nominal_anual = _percentual_para_fracao(taxa_nominal_itau.group(1))
 
     return dados
 

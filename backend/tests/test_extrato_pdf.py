@@ -65,3 +65,51 @@ def test_texto_sem_padroes_reconheciveis_retorna_campos_none():
     assert dados.taxa_efetiva_informada is None
     assert dados.prazo_original is None
     assert dados.prazo_restante is None
+
+
+# Layout do Demonstrativo Descritivo de Crédito (DDC) do Itaú. Reproduz a
+# particularidade real desse PDF: o pdfplumber extrai os rótulos sem espaço
+# entre as palavras internas (ex.: "Prazototaloperação"), mas com espaço antes
+# do valor. Dados fictícios, mesmo motivo do bloco acima.
+TEXTO_EXEMPLO_ITAU = """FULANODETAL agência conta
+000.000.000-00 0001 11111-1
+Demonstrativo Descritivo de Crédito (DDC) Emitidoem14.8.2026ás15:5:2
+ModalidadedeCrédito Taxafixa
+Prazototaloperação 115 TaxadeJuros(mensal) 0,557579000%
+Prazoremanescente 57 TaxadeJuros(anual) 6,690948000%
+Sistemadepagamento(débitoemconta/boleto) DebitoAutomatico Taxaefetiva(anual) 6,900000000%
+Valordaúltimaparcela(novencimento) R$1.480,79 ModalidadedaCarteira SISTEMAFINANCEIROHABITACIONAL
+Datadovencimentodaúltimaparcela 01/05/2031 Númerodocontrato 10167848507
+Sistemadeamortização SAC
+"""
+
+
+def test_itau_extrai_sistema_amortizacao():
+    dados = extrair_de_texto(TEXTO_EXEMPLO_ITAU)
+    assert dados.sistema_amortizacao == "sac"
+
+
+def test_itau_extrai_prazo_original_e_restante():
+    dados = extrair_de_texto(TEXTO_EXEMPLO_ITAU)
+    assert dados.prazo_original == 115
+    assert dados.prazo_restante == 57
+
+
+def test_itau_extrai_data_base_da_emissao():
+    dados = extrair_de_texto(TEXTO_EXEMPLO_ITAU)
+    assert dados.data_base == date(2026, 8, 14)
+
+
+def test_itau_extrai_taxa_nominal_anual():
+    dados = extrair_de_texto(TEXTO_EXEMPLO_ITAU)
+    assert dados.taxa_nominal_anual == Decimal("0.066909480")
+
+
+def test_itau_extrai_taxa_efetiva_informada():
+    dados = extrair_de_texto(TEXTO_EXEMPLO_ITAU)
+    assert dados.taxa_efetiva_informada == Decimal("0.069000000")
+
+
+def test_itau_saldo_devedor_nao_esta_no_cabecalho():
+    dados = extrair_de_texto(TEXTO_EXEMPLO_ITAU)
+    assert dados.saldo_devedor is None
